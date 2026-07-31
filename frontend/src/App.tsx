@@ -1,10 +1,11 @@
 import "./styles/global.css";
+import DashboardPage from "./features/dashboard/DashboardPage";
+import DesktopLayout from "./layouts/DesktopLayout";
 
 export default function App() {
   return (
-    <main className="welcome-shell">
-      <p className="brand">MyPace</p>
-      <h1>내 수입에 맞춰, 소비도 마이페이스</h1>
-    </main>
+    <DesktopLayout>
+      <DashboardPage />
+    </DesktopLayout>
   );
 }

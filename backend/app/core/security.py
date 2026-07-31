@@ -12,6 +12,7 @@ from app.core.config import get_settings
 class CurrentUser:
     user_id: UUID
     email: str | None = None
+    provider: str = "email"
 
 
 class SupabaseTokenVerifier:
@@ -31,9 +32,11 @@ class SupabaseTokenVerifier:
                 issuer=self.issuer,
                 options={"require": ["exp", "sub"]},
             )
+            provider = payload.get("app_metadata", {}).get("provider") or "email"
             return CurrentUser(
                 user_id=UUID(payload["sub"]),
                 email=payload.get("email"),
+                provider=provider,
             )
         except Exception as exc:
             raise HTTPException(

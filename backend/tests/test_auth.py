@@ -9,7 +9,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.database import get_db
 from app.main import app
-from app.models.entities import Base, Profile
+from app.models.entities import AuthProvider, Base, Profile
 
 
 @pytest.fixture()
@@ -50,7 +50,16 @@ def test_profile_returns_the_authenticated_users_profile(
     from app.dependencies import CurrentUser, get_current_user
 
     user_id = uuid4()
-    db_session.add(Profile(user_id=user_id, display_name="Youngchan", user_type="worker"))
+    db_session.add(
+        Profile(
+            user_id=user_id,
+            display_name="Youngchan",
+            user_type="worker",
+            email="youngchan@example.com",
+            primary_auth_provider=AuthProvider.EMAIL,
+            auth_providers="email",
+        )
+    )
     db_session.commit()
 
     def override_current_user() -> CurrentUser:
@@ -65,6 +74,9 @@ def test_profile_returns_the_authenticated_users_profile(
         "user_id": str(user_id),
         "display_name": "Youngchan",
         "user_type": "worker",
+        "email": "youngchan@example.com",
+        "primary_auth_provider": "email",
+        "auth_providers": ["email"],
     }
 
 
@@ -95,6 +107,9 @@ def test_profile_upsert_uses_token_user_not_request_user_id(
 
     assert response.status_code == 200
     assert response.json()["user_id"] == str(token_user_id)
+    assert response.json()["email"] is None
+    assert response.json()["primary_auth_provider"] == "email"
+    assert response.json()["auth_providers"] == ["email"]
     assert db_session.get(Profile, UUID(str(request_user_id))) is None
     assert saved_profile is not None
     assert saved_profile.display_name == "Token Owner"

@@ -34,10 +34,14 @@ def upgrade() -> None:
         sa.Column("user_id", sa.Uuid(), nullable=False),
         sa.Column("display_name", sa.String(length=40), nullable=False),
         sa.Column("user_type", sa.String(length=20), nullable=False),
+        sa.Column("email", sa.String(length=320), nullable=True),
+        sa.Column("primary_auth_provider", sa.String(length=20), nullable=False),
+        sa.Column("auth_providers", sa.String(length=120), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.PrimaryKeyConstraint("user_id"),
     )
+    op.create_index(op.f("ix_profiles_email"), "profiles", ["email"])
     op.create_table(
         "income_sources",
         sa.Column("id", sa.Uuid(), nullable=False),
@@ -116,6 +120,7 @@ def upgrade() -> None:
         sa.Column("occurred_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("transaction_type", sa.String(length=20), nullable=False),
         sa.Column("is_synthetic", sa.Boolean(), nullable=False),
+        sa.Column("external_id", sa.String(length=120), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.ForeignKeyConstraint(["account_id"], ["financial_accounts.id"], ondelete="CASCADE"),
@@ -123,6 +128,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("ix_transactions_user_occurred_at", "transactions", ["user_id", "occurred_at"])
+    op.create_index(op.f("ix_transactions_external_id"), "transactions", ["external_id"])
     op.create_index(op.f("ix_transactions_user_id"), "transactions", ["user_id"])
     op.create_table(
         "budget_items",
@@ -212,6 +218,7 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_budget_items_budget_id"), table_name="budget_items")
     op.drop_table("budget_items")
     op.drop_index(op.f("ix_transactions_user_id"), table_name="transactions")
+    op.drop_index(op.f("ix_transactions_external_id"), table_name="transactions")
     op.drop_index("ix_transactions_user_occurred_at", table_name="transactions")
     op.drop_table("transactions")
     op.drop_index(op.f("ix_income_entries_user_id"), table_name="income_entries")
@@ -226,4 +233,5 @@ def downgrade() -> None:
     op.drop_table("financial_accounts")
     op.drop_index(op.f("ix_income_sources_user_id"), table_name="income_sources")
     op.drop_table("income_sources")
+    op.drop_index(op.f("ix_profiles_email"), table_name="profiles")
     op.drop_table("profiles")

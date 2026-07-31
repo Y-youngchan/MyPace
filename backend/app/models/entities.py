@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from decimal import Decimal
+from enum import StrEnum
 from typing import Optional
 from uuid import UUID, uuid4
 
@@ -9,6 +10,12 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 class Base(DeclarativeBase):
     pass
+
+
+class AuthProvider(StrEnum):
+    EMAIL = "email"
+    GOOGLE = "google"
+    KAKAO = "kakao"
 
 
 class TimestampMixin:
@@ -26,6 +33,9 @@ class Profile(Base, TimestampMixin):
     user_id: Mapped[UUID] = mapped_column(primary_key=True)
     display_name: Mapped[str] = mapped_column(String(40))
     user_type: Mapped[str] = mapped_column(String(20))
+    email: Mapped[Optional[str]] = mapped_column(String(320), index=True)
+    primary_auth_provider: Mapped[str] = mapped_column(String(20), default=AuthProvider.EMAIL.value)
+    auth_providers: Mapped[str] = mapped_column(String(120), default=AuthProvider.EMAIL.value)
 
 
 class IncomeSource(Base, TimestampMixin):
@@ -97,6 +107,7 @@ class Transaction(Base, TimestampMixin):
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     transaction_type: Mapped[str] = mapped_column(String(20))
     is_synthetic: Mapped[bool] = mapped_column(default=True)
+    external_id: Mapped[Optional[str]] = mapped_column(String(120), index=True)
 
     account: Mapped[FinancialAccount] = relationship(back_populates="transactions")
 
@@ -131,6 +142,7 @@ class BudgetItem(Base, TimestampMixin):
     reason: Mapped[str] = mapped_column(Text, default="")
 
     budget: Mapped[Budget] = relationship(back_populates="items")
+    category: Mapped[Category] = relationship()
 
 
 class AiInsight(Base, TimestampMixin):

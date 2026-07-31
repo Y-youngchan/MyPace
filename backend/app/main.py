@@ -2,7 +2,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
+from app.routers.budgets import router as budgets_router
+from app.routers.incomes import router as incomes_router
+from app.routers.mock_banking import router as mock_banking_router
 from app.routers.profile import router as profile_router
+from app.routers.transactions import router as transactions_router
 
 settings = get_settings()
 app = FastAPI(title=settings.app_name)
@@ -13,7 +17,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(budgets_router)
+app.include_router(incomes_router)
+app.include_router(mock_banking_router)
 app.include_router(profile_router)
+app.include_router(transactions_router)
 
 
 @app.get("/health")

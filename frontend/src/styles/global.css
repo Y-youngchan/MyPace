@@ -1,43 +1,21 @@
-:root {
-  font-family: Pretendard, "Noto Sans KR", system-ui, sans-serif;
-  color: #17253f;
-  background: #f8f6ef;
-  --color-primary: #173b68;
-  --color-accent: #62c6ae;
-  --color-surface: #ffffff;
-  --color-border: #dfe5e2;
-  --color-warning: #b77818;
-  --color-danger: #b64a4a;
-}
+@import "tailwindcss";
 
-* {
-  box-sizing: border-box;
-}
+@layer base {
+  :root {
+    color: #17253f;
+    background: #f8f6ef;
+    font-family: Pretendard, "Noto Sans KR", system-ui, sans-serif;
+  }
 
-body {
-  margin: 0;
-  min-width: 320px;
-}
+  body {
+    margin: 0;
+    min-width: 320px;
+    background: #f8f6ef;
+  }
 
-button,
-input,
-select {
-  font: inherit;
-}
-
-.welcome-shell {
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: 48px 32px;
-}
-
-.brand {
-  color: var(--color-primary);
-  font-weight: 700;
-}
-
-@media (max-width: 900px) {
-  .welcome-shell {
-    padding: 32px 20px;
+  button,
+  input,
+  select {
+    font: inherit;
   }
 }
