@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter } from "react-router-dom";
 import DesktopSidebar from "./DesktopSidebar";
 
 describe("DesktopSidebar", () => {
@@ -25,7 +26,7 @@ describe("DesktopSidebar", () => {
   });
 
   it("renders horizontal scroll structure for compact menu access", () => {
-    render(<DesktopSidebar />);
+    renderSidebar();
 
     expect(screen.getByLabelText("메뉴 스크롤 영역")).toHaveClass("w-full");
     expect(screen.getByLabelText("메뉴 스크롤 영역")).toHaveClass("overflow-hidden");
@@ -34,7 +35,7 @@ describe("DesktopSidebar", () => {
   });
 
   it("hides scroll controls when the menu fully fits", async () => {
-    render(<DesktopSidebar />);
+    renderSidebar();
     mockMenuWidths({ scrollWidth: 600, clientWidth: 600 });
 
     observe?.([], {} as ResizeObserver);
@@ -46,7 +47,7 @@ describe("DesktopSidebar", () => {
   });
 
   it("shows and uses scroll controls when the menu overflows", async () => {
-    render(<DesktopSidebar />);
+    renderSidebar();
     mockMenuWidths({ scrollWidth: 900, clientWidth: 600 });
 
     observe?.([], {} as ResizeObserver);
@@ -64,6 +65,14 @@ describe("DesktopSidebar", () => {
     expect(HTMLElement.prototype.scrollBy).toHaveBeenCalledWith({ left: -180, behavior: "smooth" });
   });
 });
+
+function renderSidebar() {
+  render(
+    <MemoryRouter>
+      <DesktopSidebar />
+    </MemoryRouter>,
+  );
+}
 
 function mockMenuWidths({ scrollWidth, clientWidth }: { scrollWidth: number; clientWidth: number }) {
   const menu = screen.getByLabelText("주요 메뉴 목록");

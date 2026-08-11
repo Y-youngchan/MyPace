@@ -173,42 +173,44 @@ def upgrade() -> None:
     op.create_index("ix_monthly_reports_user_period", "monthly_reports", ["user_id", "period"])
     op.create_index(op.f("ix_monthly_reports_user_id"), "monthly_reports", ["user_id"])
 
-    for table in USER_OWNED_TABLES:
-        op.execute(f'ALTER TABLE public."{table}" ENABLE ROW LEVEL SECURITY')
-        op.execute(
-            f'''CREATE POLICY "{table}_owner_all" ON public."{table}"
-                FOR ALL TO authenticated
-                USING ((select auth.uid()) = user_id)
-                WITH CHECK ((select auth.uid()) = user_id)'''
-        )
-
-    op.execute('ALTER TABLE public."budget_items" ENABLE ROW LEVEL SECURITY')
-    op.execute(
-        '''CREATE POLICY "budget_items_owner_all" ON public."budget_items"
-            FOR ALL TO authenticated
-            USING (
-                EXISTS (
-                    SELECT 1 FROM public."budgets"
-                    WHERE budgets.id = budget_items.budget_id
-                    AND budgets.user_id = (select auth.uid())
-                )
+    if op.get_context().dialect.name == "postgresql":
+        for table in USER_OWNED_TABLES:
+            op.execute(f'ALTER TABLE public."{table}" ENABLE ROW LEVEL SECURITY')
+            op.execute(
+                f'''CREATE POLICY "{table}_owner_all" ON public."{table}"
+                    FOR ALL TO authenticated
+                    USING ((select auth.uid()) = user_id)
+                    WITH CHECK ((select auth.uid()) = user_id)'''
             )
-            WITH CHECK (
-                EXISTS (
-                    SELECT 1 FROM public."budgets"
-                    WHERE budgets.id = budget_items.budget_id
-                    AND budgets.user_id = (select auth.uid())
+
+        op.execute('ALTER TABLE public."budget_items" ENABLE ROW LEVEL SECURITY')
+        op.execute(
+            '''CREATE POLICY "budget_items_owner_all" ON public."budget_items"
+                FOR ALL TO authenticated
+                USING (
+                    EXISTS (
+                        SELECT 1 FROM public."budgets"
+                        WHERE budgets.id = budget_items.budget_id
+                        AND budgets.user_id = (select auth.uid())
+                    )
                 )
-            )'''
-    )
+                WITH CHECK (
+                    EXISTS (
+                        SELECT 1 FROM public."budgets"
+                        WHERE budgets.id = budget_items.budget_id
+                        AND budgets.user_id = (select auth.uid())
+                    )
+                )'''
+        )
 
 
 def downgrade() -> None:
-    op.execute('DROP POLICY IF EXISTS "budget_items_owner_all" ON public."budget_items"')
-    op.execute('ALTER TABLE public."budget_items" DISABLE ROW LEVEL SECURITY')
-    for table in reversed(USER_OWNED_TABLES):
-        op.execute(f'DROP POLICY IF EXISTS "{table}_owner_all" ON public."{table}"')
-        op.execute(f'ALTER TABLE public."{table}" DISABLE ROW LEVEL SECURITY')
+    if op.get_context().dialect.name == "postgresql":
+        op.execute('DROP POLICY IF EXISTS "budget_items_owner_all" ON public."budget_items"')
+        op.execute('ALTER TABLE public."budget_items" DISABLE ROW LEVEL SECURITY')
+        for table in reversed(USER_OWNED_TABLES):
+            op.execute(f'DROP POLICY IF EXISTS "{table}_owner_all" ON public."{table}"')
+            op.execute(f'ALTER TABLE public."{table}" DISABLE ROW LEVEL SECURITY')
 
     op.drop_index(op.f("ix_monthly_reports_user_id"), table_name="monthly_reports")
     op.drop_index("ix_monthly_reports_user_period", table_name="monthly_reports")

@@ -43,6 +43,10 @@ def _to_profile_response(profile) -> ProfileResponse:
     return ProfileResponse(
         user_id=profile.user_id,
         display_name=profile.display_name,
+        full_name=profile.full_name,
+        nickname=profile.nickname,
+        nickname_tag=profile.nickname_tag,
+        phone_number=profile.phone_number,
         user_type=profile.user_type,
         email=profile.email,
         primary_auth_provider=profile.primary_auth_provider or "email",

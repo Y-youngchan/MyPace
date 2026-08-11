@@ -1,5 +1,6 @@
 from datetime import UTC, date, datetime, time
 from decimal import Decimal
+from itertools import count
 from uuid import UUID
 
 from sqlalchemy import select
@@ -16,7 +17,7 @@ from app.models.entities import (
     Profile,
     Transaction,
 )
-from app.schemas.finance import BudgetUpsert, IncomeEntryCreate, ProfileUpsert, TransactionCreate, TransactionUpdate
+from app.schemas.finance import BudgetUpsert, IncomeEntryCreate, ProfileUpsert, SignupProfileCreate, TransactionCreate, TransactionUpdate
 
 
 class FinanceRepository:
@@ -40,6 +41,10 @@ class FinanceRepository:
             profile = Profile(
                 user_id=user_id,
                 display_name=profile_data.display_name,
+                full_name=profile_data.full_name,
+                nickname=profile_data.nickname,
+                nickname_tag=self._next_nickname_tag(profile_data.nickname),
+                phone_number=profile_data.phone_number,
                 user_type=profile_data.user_type,
                 email=email,
                 primary_auth_provider=provider,
@@ -48,6 +53,11 @@ class FinanceRepository:
             self.db.add(profile)
         else:
             profile.display_name = profile_data.display_name
+            profile.full_name = profile_data.full_name
+            if profile.nickname != profile_data.nickname:
+                profile.nickname = profile_data.nickname
+                profile.nickname_tag = self._next_nickname_tag(profile_data.nickname)
+            profile.phone_number = profile_data.phone_number
             profile.user_type = profile_data.user_type
             profile.email = email or profile.email
             profile.primary_auth_provider = profile.primary_auth_provider or provider
@@ -56,6 +66,60 @@ class FinanceRepository:
         self.db.commit()
         self.db.refresh(profile)
         return profile
+
+    def create_signup_profile(self, profile_data: SignupProfileCreate) -> Profile:
+        profile = self.get_profile(profile_data.user_id)
+        if profile is None:
+            profile = Profile(
+                user_id=profile_data.user_id,
+                display_name=profile_data.display_name,
+                full_name=profile_data.full_name,
+                nickname=profile_data.nickname,
+                nickname_tag=self._next_nickname_tag(profile_data.nickname),
+                phone_number=profile_data.phone_number,
+                user_type=profile_data.user_type,
+                email=profile_data.email,
+                primary_auth_provider=AuthProvider.EMAIL.value,
+                auth_providers=AuthProvider.EMAIL.value,
+            )
+            self.db.add(profile)
+        else:
+            profile.display_name = profile_data.display_name
+            profile.full_name = profile_data.full_name
+            if profile.nickname != profile_data.nickname:
+                profile.nickname = profile_data.nickname
+                profile.nickname_tag = self._next_nickname_tag(profile_data.nickname)
+            profile.phone_number = profile_data.phone_number
+            profile.user_type = profile_data.user_type
+            profile.email = profile_data.email
+            profile.auth_providers = self._merge_provider(profile.auth_providers, AuthProvider.EMAIL.value)
+
+        self.db.commit()
+        self.db.refresh(profile)
+        return profile
+
+    def find_emails_by_identity(self, full_name: str, phone_number: str) -> list[str]:
+        statement = select(Profile).where(
+            Profile.full_name == full_name,
+            Profile.email.is_not(None),
+        )
+        requested_phone = self._normalize_phone_number(phone_number)
+        return [
+            profile.email
+            for profile in self.db.scalars(statement)
+            if profile.email and self._normalize_phone_number(profile.phone_number) == requested_phone
+        ]
+
+    def can_reset_password(self, email: str, full_name: str, phone_number: str) -> bool:
+        statement = select(Profile).where(
+            Profile.email == email,
+            Profile.full_name == full_name,
+        )
+        requested_phone = self._normalize_phone_number(phone_number)
+        return any(
+            self._normalize_phone_number(profile.phone_number) == requested_phone
+            for profile in self.db.scalars(statement)
+        )
 
     def list_income_entries(self, user_id: UUID) -> list[IncomeEntry]:
         statement = (
@@ -284,6 +348,27 @@ class FinanceRepository:
         if provider not in providers:
             providers.append(provider)
         return ",".join(providers) or AuthProvider.EMAIL.value
+
+    @staticmethod
+    def _normalize_phone_number(phone_number: str) -> str:
+        return "".join(char for char in phone_number if char.isdigit())
+
+    def _next_nickname_tag(self, nickname: str) -> str:
+        existing_tags = set(
+            self.db.scalars(
+                select(Profile.nickname_tag).where(
+                    Profile.nickname == nickname,
+                    Profile.nickname_tag.is_not(None),
+                )
+            )
+        )
+        for value in count(1):
+            candidate = f"{value:04d}"
+            if candidate not in existing_tags:
+                return candidate
+            if value >= 9999:
+                raise ValueError("사용 가능한 닉네임 태그가 없습니다.")
+        raise ValueError("사용 가능한 닉네임 태그가 없습니다.")
 
     @staticmethod
     def _start_of_day(value: date) -> datetime:

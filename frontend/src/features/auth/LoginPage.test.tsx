@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { BrowserRouter } from "react-router-dom";
 import LoginPage from "./LoginPage";
 import { supabase } from "../../lib/supabase";
 
@@ -15,16 +16,26 @@ vi.mock("../../lib/supabase", () => ({
 
 const auth = vi.mocked(supabase.auth);
 
+function renderLoginPage() {
+  render(
+    <BrowserRouter>
+      <LoginPage />
+    </BrowserRouter>,
+  );
+}
+
 describe("LoginPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
+    window.history.pushState({}, "", "/login");
     auth.signInWithPassword.mockResolvedValue({ data: {}, error: null } as never);
     auth.signUp.mockResolvedValue({ data: {}, error: null } as never);
     auth.signInWithOAuth.mockResolvedValue({ data: {}, error: null } as never);
   });
 
   it("signs in with email and password", async () => {
-    render(<LoginPage />);
+    renderLoginPage();
 
     fireEvent.change(screen.getByLabelText("이메일"), { target: { value: "youngchan@example.com" } });
     fireEvent.change(screen.getByLabelText("비밀번호"), { target: { value: "safe-password" } });
@@ -38,23 +49,38 @@ describe("LoginPage", () => {
     });
   });
 
-  it("signs up with email and password", async () => {
-    render(<LoginPage />);
+  it("moves to the dashboard after a successful email login", async () => {
+    renderLoginPage();
 
     fireEvent.change(screen.getByLabelText("이메일"), { target: { value: "youngchan@example.com" } });
     fireEvent.change(screen.getByLabelText("비밀번호"), { target: { value: "safe-password" } });
-    fireEvent.click(screen.getByRole("button", { name: "이메일로 회원가입" }));
+    fireEvent.click(screen.getByRole("button", { name: "이메일로 로그인" }));
 
     await waitFor(() => {
-      expect(auth.signUp).toHaveBeenCalledWith({
-        email: "youngchan@example.com",
-        password: "safe-password",
-      });
+      expect(window.location.pathname).toBe("/dashboard");
     });
   });
 
+  it("moves to the separate sign-up page", async () => {
+    renderLoginPage();
+
+    fireEvent.click(screen.getByRole("link", { name: "회원가입하기" }));
+
+    expect(window.location.pathname).toBe("/signup");
+    expect(auth.signUp).not.toHaveBeenCalled();
+  });
+
+  it("opens the dashboard in local development mode", () => {
+    renderLoginPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "개발용 대시보드 보기" }));
+
+    expect(window.localStorage.getItem("mypace_dev_dashboard_access")).toBe("true");
+    expect(window.location.pathname).toBe("/dashboard");
+  });
+
   it("starts Google and Kakao OAuth login", async () => {
-    render(<LoginPage />);
+    renderLoginPage();
 
     fireEvent.click(screen.getByRole("button", { name: "Google로 계속하기" }));
     fireEvent.click(screen.getByRole("button", { name: "Kakao로 계속하기" }));
@@ -72,7 +98,7 @@ describe("LoginPage", () => {
   });
 
   it("does not render phone login", () => {
-    render(<LoginPage />);
+    renderLoginPage();
 
     expect(screen.queryByText(/휴대폰/)).not.toBeInTheDocument();
   });

@@ -1,10 +1,11 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
-import { supabase } from "../../lib/supabase";
+import { isLocalPreviewMode, isSupabaseConfigured, supabase } from "../../lib/supabase";
 
 type AuthContextValue = {
   loading: boolean;
+  isPreviewMode: boolean;
   session: Session | null;
   user: User | null;
 };
@@ -17,6 +18,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
+
+    if (!isSupabaseConfigured) {
+      setLoading(false);
+      return;
+    }
 
     supabase.auth.getSession().then(({ data }) => {
       if (!mounted) {
@@ -42,6 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthContextValue>(
     () => ({
       loading,
+      isPreviewMode: isLocalPreviewMode,
       session,
       user: session?.user ?? null,
     }),

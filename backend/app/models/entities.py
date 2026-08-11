@@ -29,9 +29,14 @@ class TimestampMixin:
 
 class Profile(Base, TimestampMixin):
     __tablename__ = "profiles"
+    __table_args__ = (UniqueConstraint("nickname", "nickname_tag", name="uq_profiles_nickname_tag"),)
 
     user_id: Mapped[UUID] = mapped_column(primary_key=True)
     display_name: Mapped[str] = mapped_column(String(40))
+    full_name: Mapped[str] = mapped_column(String(40), default="")
+    nickname: Mapped[str] = mapped_column(String(10), default="")
+    nickname_tag: Mapped[str] = mapped_column(String(4), default="0000")
+    phone_number: Mapped[str] = mapped_column(String(30), default="")
     user_type: Mapped[str] = mapped_column(String(20))
     email: Mapped[Optional[str]] = mapped_column(String(320), index=True)
     primary_auth_provider: Mapped[str] = mapped_column(String(20), default=AuthProvider.EMAIL.value)

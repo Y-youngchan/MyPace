@@ -8,16 +8,42 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class ProfileUpsert(BaseModel):
     display_name: str = Field(min_length=1, max_length=40)
+    full_name: str = Field(default="", max_length=40)
+    nickname: str = Field(default="", max_length=10)
+    phone_number: str = Field(default="", max_length=30)
     user_type: Literal["worker", "student"]
 
 
 class ProfileResponse(ProfileUpsert):
     user_id: UUID
+    nickname_tag: str = "0000"
     email: str | None = None
     primary_auth_provider: Literal["email", "google", "kakao"] = "email"
     auth_providers: list[Literal["email", "google", "kakao"]] = Field(default_factory=lambda: ["email"])
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class SignupProfileCreate(ProfileUpsert):
+    user_id: UUID
+    email: str = Field(min_length=3, max_length=320)
+
+
+class FindEmailRequest(BaseModel):
+    full_name: str = Field(min_length=1, max_length=40)
+    phone_number: str = Field(min_length=1, max_length=30)
+
+
+class FindEmailResponse(BaseModel):
+    emails: list[str]
+
+
+class PasswordResetVerificationRequest(FindEmailRequest):
+    email: str = Field(min_length=3, max_length=320)
+
+
+class PasswordResetVerificationResponse(BaseModel):
+    can_reset: bool
 
 
 class IncomeEntryCreate(BaseModel):
@@ -72,6 +98,14 @@ class TransactionResponse(BaseModel):
 class TransactionListResponse(BaseModel):
     items: list[TransactionResponse]
     total: int
+
+
+class CalendarEventResponse(BaseModel):
+    id: str
+    event_date: date
+    event_type: Literal["income", "expense", "budget"]
+    title: str
+    amount: Decimal | None = None
 
 
 class MockBankingImportResponse(BaseModel):

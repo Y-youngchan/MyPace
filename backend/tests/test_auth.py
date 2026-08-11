@@ -54,6 +54,10 @@ def test_profile_returns_the_authenticated_users_profile(
         Profile(
             user_id=user_id,
             display_name="Youngchan",
+            full_name="유영찬",
+            nickname="영찬",
+            nickname_tag="0007",
+            phone_number="010-1234-5678",
             user_type="worker",
             email="youngchan@example.com",
             primary_auth_provider=AuthProvider.EMAIL,
@@ -73,6 +77,10 @@ def test_profile_returns_the_authenticated_users_profile(
     assert response.json() == {
         "user_id": str(user_id),
         "display_name": "Youngchan",
+        "full_name": "유영찬",
+        "nickname": "영찬",
+        "nickname_tag": "0007",
+        "phone_number": "010-1234-5678",
         "user_type": "worker",
         "email": "youngchan@example.com",
         "primary_auth_provider": "email",
@@ -99,6 +107,9 @@ def test_profile_upsert_uses_token_user_not_request_user_id(
         json={
             "user_id": str(request_user_id),
             "display_name": "Token Owner",
+            "full_name": "토큰 오너",
+            "nickname": "토큰",
+            "phone_number": "01099998888",
             "user_type": "student",
         },
     )
@@ -113,3 +124,8 @@ def test_profile_upsert_uses_token_user_not_request_user_id(
     assert db_session.get(Profile, UUID(str(request_user_id))) is None
     assert saved_profile is not None
     assert saved_profile.display_name == "Token Owner"
+    assert saved_profile.full_name == "토큰 오너"
+    assert saved_profile.nickname == "토큰"
+    assert saved_profile.nickname_tag.isdigit()
+    assert len(saved_profile.nickname_tag) == 4
+    assert saved_profile.phone_number == "01099998888"
