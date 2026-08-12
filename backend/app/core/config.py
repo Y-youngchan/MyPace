@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./mypace.db"
     supabase_url: str = ""
     supabase_jwt_issuer: str = ""
+    supabase_publishable_key: str = ""
     openai_api_key: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

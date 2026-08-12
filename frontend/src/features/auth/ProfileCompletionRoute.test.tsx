@@ -17,14 +17,14 @@ vi.mock("./devAccess", () => ({
 
 const loadProfile = vi.mocked(getProfile);
 
-function renderProfileCompletionRoute() {
+function renderProfileCompletionRoute(user: Partial<User> = {}) {
   render(
     <AuthContext.Provider
       value={{
         loading: false,
         isPreviewMode: false,
         session: { access_token: "token" } as Session,
-        user: { id: "user-id" } as User,
+        user: { id: "user-id", ...user } as User,
       }}
     >
       <MemoryRouter initialEntries={["/dashboard"]}>
@@ -70,7 +70,7 @@ describe("ProfileCompletionRoute", () => {
     expect(await screen.findByText("Profile setup")).toBeInTheDocument();
   });
 
-  it("moves signed-in users with missing profile fields to profile setup", async () => {
+  it("moves email users with missing profile fields to profile setup", async () => {
     loadProfile.mockResolvedValueOnce({
       user_id: "user-id",
       email: "youngchan@example.com",
@@ -84,8 +84,26 @@ describe("ProfileCompletionRoute", () => {
       auth_providers: ["google"],
     });
 
-    renderProfileCompletionRoute();
+    renderProfileCompletionRoute({ app_metadata: { provider: "email" } });
 
     expect(await screen.findByText("Profile setup")).toBeInTheDocument();
+  });
+
+  it("lets google users enter internal pages without additional profile setup", async () => {
+    loadProfile.mockRejectedValueOnce(new ApiError(404, "프로필이 아직 없습니다."));
+
+    renderProfileCompletionRoute({ app_metadata: { provider: "google" } });
+
+    expect(await screen.findByText("Dashboard content")).toBeInTheDocument();
+    expect(loadProfile).not.toHaveBeenCalled();
+  });
+
+  it("lets kakao users enter internal pages without additional profile setup", async () => {
+    loadProfile.mockRejectedValueOnce(new ApiError(404, "프로필이 아직 없습니다."));
+
+    renderProfileCompletionRoute({ app_metadata: { provider: "kakao" } });
+
+    expect(await screen.findByText("Dashboard content")).toBeInTheDocument();
+    expect(loadProfile).not.toHaveBeenCalled();
   });
 });

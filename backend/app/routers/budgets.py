@@ -39,6 +39,26 @@ def recommend_budget_endpoint(
     )
 
 
+@router.get("/{period}", response_model=BudgetResponse)
+def get_budget_endpoint(
+    period: date,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> BudgetResponse:
+    budget = FinanceRepository(db).get_budget(current_user.user_id, period)
+    if budget is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="저장된 예산이 없습니다.")
+
+    return BudgetResponse(
+        id=budget.id,
+        user_id=budget.user_id,
+        period=budget.period,
+        basis_income_amount=budget.basis_income_amount,
+        status=budget.status,
+        items={item.category.name: item.adjusted_amount for item in budget.items},
+    )
+
+
 @router.put("/{period}", response_model=BudgetResponse)
 def upsert_budget_endpoint(
     period: date,

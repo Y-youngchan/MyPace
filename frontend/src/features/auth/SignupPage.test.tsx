@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BrowserRouter } from "react-router-dom";
 import SignupPage from "./SignupPage";
 import { supabase } from "../../lib/supabase";
-import { createSignupProfile } from "../../api/accountRecovery";
 
 vi.mock("../../lib/supabase", () => ({
   supabase: {
@@ -13,12 +12,7 @@ vi.mock("../../lib/supabase", () => ({
   },
 }));
 
-vi.mock("../../api/accountRecovery", () => ({
-  createSignupProfile: vi.fn(),
-}));
-
 const auth = vi.mocked(supabase.auth);
-const createProfile = vi.mocked(createSignupProfile);
 
 function renderSignupPage() {
   render(
@@ -33,18 +27,14 @@ describe("SignupPage", () => {
     vi.clearAllMocks();
     window.history.pushState({}, "", "/signup");
     auth.signUp.mockResolvedValue({ data: { user: { id: "user-id" } }, error: null } as never);
-    createProfile.mockResolvedValue({} as never);
   });
 
-  it("creates an email account from a separate sign-up page", async () => {
+  it("creates an email account with only email and password from the sign-up page", async () => {
     renderSignupPage();
 
     fireEvent.change(screen.getByLabelText("이메일"), { target: { value: "youngchan@example.com" } });
     fireEvent.change(screen.getByLabelText("비밀번호"), { target: { value: "safe1234!" } });
     fireEvent.change(screen.getByLabelText("비밀번호 확인"), { target: { value: "safe1234!" } });
-    fireEvent.change(screen.getByLabelText("이름"), { target: { value: "유영찬" } });
-    fireEvent.change(screen.getByLabelText("사용자 닉네임"), { target: { value: "찬이" } });
-    fireEvent.change(screen.getByLabelText("휴대폰번호"), { target: { value: "010-1234-5678" } });
     fireEvent.click(screen.getByRole("button", { name: "이메일로 회원가입" }));
 
     await waitFor(() => {
@@ -53,24 +43,13 @@ describe("SignupPage", () => {
         password: "safe1234!",
         options: {
           emailRedirectTo: `${window.location.origin}/dashboard`,
-          data: {
-            full_name: "유영찬",
-            nickname: "찬이",
-            phone_number: "010-1234-5678",
-          },
         },
       });
     });
-    expect(createProfile).toHaveBeenCalledWith({
-      user_id: "user-id",
-      email: "youngchan@example.com",
-      display_name: "찬이",
-      full_name: "유영찬",
-      nickname: "찬이",
-      phone_number: "010-1234-5678",
-      user_type: "worker",
-    });
-    expect(await screen.findByRole("status")).toHaveTextContent("가입 확인 메일을 확인해주세요.");
+    expect(screen.queryByLabelText("이름")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("사용자 닉네임")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("휴대폰번호")).not.toBeInTheDocument();
+    expect(await screen.findByRole("status")).toHaveTextContent("입력한 이메일로 인증 메일을 보냈어요. 메일함에서 가입 인증을 진행해주세요.");
   });
 
   it("shows a password rule guide before requesting sign-up", async () => {
@@ -79,9 +58,6 @@ describe("SignupPage", () => {
     fireEvent.change(screen.getByLabelText("이메일"), { target: { value: "youngchan@example.com" } });
     fireEvent.change(screen.getByLabelText("비밀번호"), { target: { value: "password" } });
     fireEvent.change(screen.getByLabelText("비밀번호 확인"), { target: { value: "password" } });
-    fireEvent.change(screen.getByLabelText("이름"), { target: { value: "유영찬" } });
-    fireEvent.change(screen.getByLabelText("사용자 닉네임"), { target: { value: "찬이" } });
-    fireEvent.change(screen.getByLabelText("휴대폰번호"), { target: { value: "010-1234-5678" } });
     fireEvent.click(screen.getByRole("button", { name: "이메일로 회원가입" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("비밀번호는 영문과 숫자를 포함해 8자 이상이어야 합니다.");
@@ -94,34 +70,10 @@ describe("SignupPage", () => {
     fireEvent.change(screen.getByLabelText("이메일"), { target: { value: "youngchan@example.com" } });
     fireEvent.change(screen.getByLabelText("비밀번호"), { target: { value: "safe1234!" } });
     fireEvent.change(screen.getByLabelText("비밀번호 확인"), { target: { value: "safe12345!" } });
-    fireEvent.change(screen.getByLabelText("이름"), { target: { value: "유영찬" } });
-    fireEvent.change(screen.getByLabelText("사용자 닉네임"), { target: { value: "찬이" } });
-    fireEvent.change(screen.getByLabelText("휴대폰번호"), { target: { value: "010-1234-5678" } });
     fireEvent.click(screen.getByRole("button", { name: "이메일로 회원가입" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("비밀번호 확인이 일치하지 않습니다.");
     expect(auth.signUp).not.toHaveBeenCalled();
-  });
-
-  it("shows a nickname length guide before requesting sign-up", async () => {
-    renderSignupPage();
-
-    fireEvent.change(screen.getByLabelText("이메일"), { target: { value: "youngchan@example.com" } });
-    fireEvent.change(screen.getByLabelText("비밀번호"), { target: { value: "safe1234!" } });
-    fireEvent.change(screen.getByLabelText("비밀번호 확인"), { target: { value: "safe1234!" } });
-    fireEvent.change(screen.getByLabelText("이름"), { target: { value: "유영찬" } });
-    fireEvent.change(screen.getByLabelText("사용자 닉네임"), { target: { value: "길이가긴닉네임입니다요" } });
-    fireEvent.change(screen.getByLabelText("휴대폰번호"), { target: { value: "010-1234-5678" } });
-    fireEvent.click(screen.getByRole("button", { name: "이메일로 회원가입" }));
-
-    expect(await screen.findByRole("alert")).toHaveTextContent("닉네임은 10자 이내로 입력해주세요.");
-    expect(auth.signUp).not.toHaveBeenCalled();
-  });
-
-  it("shows that nickname tags are assigned automatically", () => {
-    renderSignupPage();
-
-    expect(screen.getByText("동일한 닉네임은 자동 태그번호로 구분돼요.")).toBeInTheDocument();
   });
 
   it("moves to the dashboard when sign-up also creates a login session", async () => {
@@ -135,9 +87,6 @@ describe("SignupPage", () => {
     fireEvent.change(screen.getByLabelText("이메일"), { target: { value: "youngchan@example.com" } });
     fireEvent.change(screen.getByLabelText("비밀번호"), { target: { value: "safe1234!" } });
     fireEvent.change(screen.getByLabelText("비밀번호 확인"), { target: { value: "safe1234!" } });
-    fireEvent.change(screen.getByLabelText("이름"), { target: { value: "유영찬" } });
-    fireEvent.change(screen.getByLabelText("사용자 닉네임"), { target: { value: "찬이" } });
-    fireEvent.change(screen.getByLabelText("휴대폰번호"), { target: { value: "010-1234-5678" } });
     fireEvent.click(screen.getByRole("button", { name: "이메일로 회원가입" }));
 
     await waitFor(() => {
@@ -153,9 +102,6 @@ describe("SignupPage", () => {
     fireEvent.change(screen.getByLabelText("이메일"), { target: { value: "youngchan@example.com" } });
     fireEvent.change(screen.getByLabelText("비밀번호"), { target: { value: "safe1234!" } });
     fireEvent.change(screen.getByLabelText("비밀번호 확인"), { target: { value: "safe1234!" } });
-    fireEvent.change(screen.getByLabelText("이름"), { target: { value: "유영찬" } });
-    fireEvent.change(screen.getByLabelText("사용자 닉네임"), { target: { value: "찬이" } });
-    fireEvent.change(screen.getByLabelText("휴대폰번호"), { target: { value: "010-1234-5678" } });
     fireEvent.click(screen.getByRole("button", { name: "이메일로 회원가입" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("이미 존재하는 이메일입니다.");
@@ -174,9 +120,6 @@ describe("SignupPage", () => {
     fireEvent.change(screen.getByLabelText("이메일"), { target: { value: "youngchan@example.com" } });
     fireEvent.change(screen.getByLabelText("비밀번호"), { target: { value: "safe1234!" } });
     fireEvent.change(screen.getByLabelText("비밀번호 확인"), { target: { value: "safe1234!" } });
-    fireEvent.change(screen.getByLabelText("이름"), { target: { value: "유영찬" } });
-    fireEvent.change(screen.getByLabelText("사용자 닉네임"), { target: { value: "찬이" } });
-    fireEvent.change(screen.getByLabelText("휴대폰번호"), { target: { value: "010-1234-5678" } });
 
     const button = screen.getByRole("button", { name: "이메일로 회원가입" });
     fireEvent.click(button);

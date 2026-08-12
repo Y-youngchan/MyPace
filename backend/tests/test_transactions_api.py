@@ -122,6 +122,54 @@ def test_transaction_amount_must_be_positive(client: TestClient) -> None:
     assert response.status_code == 422
 
 
+def test_updating_transaction_returns_updated_category_name(client: TestClient) -> None:
+    created_response = client.post(
+        "/api/v1/transactions",
+        json={
+            "amount": "12000",
+            "kind": "expense",
+            "occurred_at": "2026-07-03",
+            "description": "점심",
+            "category_name": "식비",
+        },
+    )
+
+    response = client.put(
+        f"/api/v1/transactions/{created_response.json()['id']}",
+        json={
+            "amount": "18000",
+            "kind": "expense",
+            "occurred_at": "2026-07-04",
+            "description": "저녁",
+            "category_name": "외식",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["amount"] == "18000.00"
+    assert response.json()["description"] == "저녁"
+    assert response.json()["category_name"] == "외식"
+
+
+def test_deleting_transaction_removes_it_from_list(client: TestClient) -> None:
+    created_response = client.post(
+        "/api/v1/transactions",
+        json={
+            "amount": "12000",
+            "kind": "expense",
+            "occurred_at": "2026-07-03",
+            "description": "점심",
+            "category_name": "식비",
+        },
+    )
+
+    response = client.delete(f"/api/v1/transactions/{created_response.json()['id']}")
+    list_response = client.get("/api/v1/transactions")
+
+    assert response.status_code == 204
+    assert list_response.json()["items"] == []
+
+
 def test_deleting_another_users_transaction_returns_404(
     client: TestClient,
     db_session: Session,

@@ -90,6 +90,7 @@ class TransactionResponse(BaseModel):
     kind: Literal["income", "expense"]
     occurred_at: datetime
     description: str
+    category_name: str | None = None
     category_id: UUID | None
     account_id: UUID
     is_synthetic: bool
@@ -100,12 +101,55 @@ class TransactionListResponse(BaseModel):
     total: int
 
 
+class CategoryCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    kind: Literal["income", "expense"]
+
+
+class CategoryUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    kind: Literal["income", "expense"]
+
+
+class CategoryResponse(BaseModel):
+    id: UUID
+    user_id: UUID
+    name: str
+    kind: Literal["income", "expense"]
+
+
 class CalendarEventResponse(BaseModel):
     id: str
     event_date: date
     event_type: Literal["income", "expense", "budget"]
     title: str
     amount: Decimal | None = None
+
+
+class DashboardRecentTransaction(BaseModel):
+    title: str
+    category: str
+    amount: Decimal
+
+
+class DashboardBudgetProgress(BaseModel):
+    category: str
+    used_amount: Decimal
+    budget_amount: Decimal
+    used_percent: int
+    status: Literal["여유", "안정", "주의", "초과"]
+
+
+class DashboardSummaryResponse(BaseModel):
+    period: date
+    expected_income: Decimal
+    monthly_spent: Decimal
+    remaining_living_money: Decimal
+    daily_available: Decimal
+    budget_usage_percent: int
+    recent_transactions: list[DashboardRecentTransaction]
+    budget_progress: list[DashboardBudgetProgress]
+    weekly_actions: list[str]
 
 
 class MockBankingImportResponse(BaseModel):

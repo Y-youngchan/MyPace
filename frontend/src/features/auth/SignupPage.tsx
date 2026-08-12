@@ -1,6 +1,5 @@
 import { FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { createSignupProfile } from "../../api/accountRecovery";
 import { supabase } from "../../lib/supabase";
 import { formatAuthError } from "./authMessages";
 import { isValidSignupPassword } from "./signupValidation";
@@ -15,9 +14,6 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [nickname, setNickname] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
   const [notice, setNotice] = useState<SignupNotice>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -38,11 +34,6 @@ export default function SignupPage() {
       return;
     }
 
-    if (nickname.length > 10) {
-      setNotice({ tone: "error", text: "닉네임은 10자 이내로 입력해주세요." });
-      return;
-    }
-
     setIsSubmitting(true);
 
     try {
@@ -51,11 +42,6 @@ export default function SignupPage() {
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/dashboard`,
-          data: {
-            full_name: fullName,
-            nickname,
-            phone_number: phoneNumber,
-          },
         },
       });
 
@@ -64,24 +50,12 @@ export default function SignupPage() {
         return;
       }
 
-      if (data.user?.id) {
-        await createSignupProfile({
-          user_id: data.user.id,
-          email,
-          display_name: nickname,
-          full_name: fullName,
-          nickname,
-          phone_number: phoneNumber,
-          user_type: "worker",
-        });
-      }
-
       if (data.session) {
         navigate("/dashboard", { replace: true });
         return;
       }
 
-      setNotice({ tone: "success", text: "가입 확인 메일을 확인해주세요." });
+      setNotice({ tone: "success", text: "입력한 이메일로 인증 메일을 보냈어요. 메일함에서 가입 인증을 진행해주세요." });
     } finally {
       setIsSubmitting(false);
     }
@@ -110,41 +84,6 @@ export default function SignupPage() {
             type="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            required
-          />
-          <label className="font-bold text-[#17253f]" htmlFor="signup-full-name">
-            이름
-          </label>
-          <input
-            className="rounded-2xl border border-[#dfe5e2] bg-white px-4 py-3 outline-[#62c6ae]"
-            id="signup-full-name"
-            type="text"
-            value={fullName}
-            onChange={(event) => setFullName(event.target.value)}
-            required
-          />
-          <label className="font-bold text-[#17253f]" htmlFor="signup-nickname">
-            사용자 닉네임
-          </label>
-          <input
-            className="rounded-2xl border border-[#dfe5e2] bg-white px-4 py-3 outline-[#62c6ae]"
-            id="signup-nickname"
-            type="text"
-            value={nickname}
-            onChange={(event) => setNickname(event.target.value)}
-            maxLength={10}
-            required
-          />
-          <p className="m-0 text-xs font-bold text-[#66758c]">동일한 닉네임은 자동 태그번호로 구분돼요.</p>
-          <label className="font-bold text-[#17253f]" htmlFor="signup-phone-number">
-            휴대폰번호
-          </label>
-          <input
-            className="rounded-2xl border border-[#dfe5e2] bg-white px-4 py-3 outline-[#62c6ae]"
-            id="signup-phone-number"
-            type="tel"
-            value={phoneNumber}
-            onChange={(event) => setPhoneNumber(event.target.value)}
             required
           />
           <label className="font-bold text-[#17253f]" htmlFor="signup-password">

@@ -74,6 +74,7 @@ def _to_response(transaction: Transaction) -> TransactionResponse:
         kind=transaction.transaction_type,
         occurred_at=transaction.occurred_at,
         description=transaction.description,
+        category_name=transaction.category.name if transaction.category else None,
         category_id=transaction.category_id,
         account_id=transaction.account_id,
         is_synthetic=transaction.is_synthetic,

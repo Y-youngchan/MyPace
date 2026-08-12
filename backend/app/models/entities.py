@@ -115,6 +115,7 @@ class Transaction(Base, TimestampMixin):
     external_id: Mapped[Optional[str]] = mapped_column(String(120), index=True)
 
     account: Mapped[FinancialAccount] = relationship(back_populates="transactions")
+    category: Mapped[Optional[Category]] = relationship()
 
 
 class Budget(Base, TimestampMixin):

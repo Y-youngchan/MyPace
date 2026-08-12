@@ -1,5 +1,5 @@
-from datetime import UTC, date, datetime, time
-from decimal import Decimal
+from datetime import UTC, date, datetime, time, timedelta
+from decimal import Decimal, ROUND_HALF_UP
 from itertools import count
 from uuid import UUID
 
@@ -235,6 +235,37 @@ class FinanceRepository:
         self.db.commit()
         return True
 
+    def list_categories(self, user_id: UUID) -> list[Category]:
+        statement = select(Category).where(Category.user_id == user_id).order_by(Category.category_type.asc(), Category.name.asc())
+        return list(self.db.scalars(statement))
+
+    def get_category(self, user_id: UUID, category_id: UUID) -> Category | None:
+        statement = select(Category).where(Category.user_id == user_id, Category.id == category_id)
+        return self.db.scalar(statement)
+
+    def category_name_exists(self, user_id: UUID, name: str, *, exclude_category_id: UUID | None = None) -> bool:
+        statement = select(Category).where(Category.user_id == user_id, Category.name == name)
+        if exclude_category_id is not None:
+            statement = statement.where(Category.id != exclude_category_id)
+        return self.db.scalar(statement) is not None
+
+    def create_category(self, user_id: UUID, name: str, kind: str) -> Category:
+        category = Category(user_id=user_id, name=name, category_type=kind)
+        self.db.add(category)
+        self.db.commit()
+        self.db.refresh(category)
+        return category
+
+    def update_category(self, user_id: UUID, category_id: UUID, name: str, kind: str) -> Category | None:
+        category = self.get_category(user_id, category_id)
+        if category is None:
+            return None
+        category.name = name
+        category.category_type = kind
+        self.db.commit()
+        self.db.refresh(category)
+        return category
+
     def upsert_budget(self, user_id: UUID, period: date, budget_data: BudgetUpsert) -> Budget:
         existing = self.get_budget(user_id, period)
         if existing is None:
@@ -273,6 +304,44 @@ class FinanceRepository:
         statement = select(Budget).where(Budget.user_id == user_id, Budget.period == period)
         return self.db.scalar(statement)
 
+    def build_dashboard_summary(self, user_id: UUID, period: date) -> dict:
+        month_start = period.replace(day=1)
+        month_end = self._end_of_month(month_start)
+        income_entries = [
+            entry
+            for entry in self.list_income_entries(user_id)
+            if month_start <= entry.period <= month_end
+        ]
+        transactions = self.list_transactions(user_id, start=month_start, end=month_end)
+        expense_transactions = [transaction for transaction in transactions if transaction.transaction_type == "expense"]
+        category_names = self._category_names_for(expense_transactions)
+
+        expected_income = sum((entry.expected_amount for entry in income_entries), Decimal("0"))
+        monthly_spent = sum((transaction.amount for transaction in expense_transactions), Decimal("0"))
+        remaining_living_money = expected_income - monthly_spent
+        daily_available = remaining_living_money / Decimal("30") if remaining_living_money > 0 else Decimal("0")
+        budget = self.get_budget(user_id, month_start)
+        budget_total = sum((item.adjusted_amount for item in budget.items), Decimal("0")) if budget else Decimal("0")
+
+        return {
+            "period": month_start,
+            "expected_income": expected_income,
+            "monthly_spent": monthly_spent,
+            "remaining_living_money": remaining_living_money,
+            "daily_available": daily_available,
+            "budget_usage_percent": self._percent(monthly_spent, budget_total),
+            "recent_transactions": [
+                {
+                    "title": transaction.description,
+                    "category": category_names.get(transaction.category_id, "미분류"),
+                    "amount": transaction.amount,
+                }
+                for transaction in expense_transactions[:3]
+            ],
+            "budget_progress": self._budget_progress(budget, expense_transactions, category_names),
+            "weekly_actions": self._weekly_actions(expected_income, monthly_spent, budget_total),
+        }
+
     def get_transaction(self, user_id: UUID, transaction_id: UUID) -> Transaction | None:
         statement = select(Transaction).where(
             Transaction.id == transaction_id,
@@ -288,6 +357,43 @@ class FinanceRepository:
             Transaction.external_id == external_id,
         )
         return self.db.scalar(statement)
+
+    def _budget_progress(
+        self,
+        budget: Budget | None,
+        transactions: list[Transaction],
+        category_names: dict[UUID | None, str],
+    ) -> list[dict]:
+        if budget is None:
+            return []
+
+        spent_by_category: dict[UUID, Decimal] = {}
+        for transaction in transactions:
+            if transaction.category_id is None:
+                continue
+            spent_by_category[transaction.category_id] = spent_by_category.get(transaction.category_id, Decimal("0")) + transaction.amount
+
+        progress = []
+        for item in budget.items:
+            used_amount = spent_by_category.get(item.category_id, Decimal("0"))
+            used_percent = self._percent(used_amount, item.adjusted_amount)
+            progress.append(
+                {
+                    "category": category_names.get(item.category_id, item.category.name if item.category else "미분류"),
+                    "used_amount": used_amount,
+                    "budget_amount": item.adjusted_amount,
+                    "used_percent": used_percent,
+                    "status": self._budget_status(used_percent),
+                }
+            )
+        return progress
+
+    def _category_names_for(self, transactions: list[Transaction]) -> dict[UUID | None, str]:
+        category_ids = {transaction.category_id for transaction in transactions if transaction.category_id is not None}
+        if not category_ids:
+            return {}
+        categories = self.db.scalars(select(Category).where(Category.id.in_(category_ids)))
+        return {category.id: category.name for category in categories}
 
     def _get_or_create_account(self, user_id: UUID) -> FinancialAccount:
         statement = select(FinancialAccount).where(
@@ -352,6 +458,42 @@ class FinanceRepository:
     @staticmethod
     def _normalize_phone_number(phone_number: str) -> str:
         return "".join(char for char in phone_number if char.isdigit())
+
+    @staticmethod
+    def _percent(value: Decimal, total: Decimal) -> int:
+        if total <= 0:
+            return 0
+        return int(((value / total) * Decimal("100")).to_integral_value(rounding=ROUND_HALF_UP))
+
+    @staticmethod
+    def _budget_status(used_percent: int) -> str:
+        if used_percent > 100:
+            return "초과"
+        if used_percent >= 80:
+            return "주의"
+        if used_percent >= 50:
+            return "안정"
+        return "여유"
+
+    @staticmethod
+    def _weekly_actions(expected_income: Decimal, monthly_spent: Decimal, budget_total: Decimal) -> list[str]:
+        if expected_income <= 0:
+            return ["수입을 먼저 입력하면 이번 달 예산 기준선을 만들 수 있어요."]
+        if budget_total <= 0:
+            return ["예산을 등록하면 카테고리별 사용 속도를 확인할 수 있어요."]
+        if monthly_spent > budget_total:
+            return ["이번 달 예산을 넘었어요. 큰 지출부터 확인해보세요."]
+        return [
+            "이번 주는 예산 사용률이 높은 항목부터 먼저 확인해보세요.",
+            "카페와 외식처럼 자주 쓰는 지출은 주간 한도를 정해두면 좋아요.",
+            "월말 전에 실제 수입과 예산 기준선을 한 번 더 맞춰보세요.",
+        ]
+
+    @staticmethod
+    def _end_of_month(month_start: date) -> date:
+        if month_start.month == 12:
+            return date(month_start.year, 12, 31)
+        return date(month_start.year, month_start.month + 1, 1) - timedelta(days=1)
 
     def _next_nickname_tag(self, nickname: str) -> str:
         existing_tags = set(

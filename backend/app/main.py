@@ -4,6 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
 from app.routers.budgets import router as budgets_router
 from app.routers.calendar import router as calendar_router
+from app.routers.categories import router as categories_router
+from app.routers.dashboard import router as dashboard_router
 from app.routers.account_recovery import router as account_recovery_router
 from app.routers.incomes import router as incomes_router
 from app.routers.mock_banking import router as mock_banking_router
@@ -21,6 +23,8 @@ app.add_middleware(
 )
 app.include_router(budgets_router)
 app.include_router(calendar_router)
+app.include_router(categories_router)
+app.include_router(dashboard_router)
 app.include_router(incomes_router)
 app.include_router(mock_banking_router)
 app.include_router(profile_router)

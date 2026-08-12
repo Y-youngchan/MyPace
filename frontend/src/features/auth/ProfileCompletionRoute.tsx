@@ -9,13 +9,13 @@ import { isDevDashboardAccessEnabled } from "./devAccess";
 type ProfileCheckState = "checking" | "complete" | "needs-setup";
 
 export default function ProfileCompletionRoute() {
-  const { isPreviewMode, session } = useAuth();
+  const { isPreviewMode, session, user } = useAuth();
   const [state, setState] = useState<ProfileCheckState>("checking");
 
   useEffect(() => {
     let mounted = true;
 
-    if (isPreviewMode || isDevDashboardAccessEnabled() || session === null) {
+    if (isPreviewMode || isDevDashboardAccessEnabled() || session === null || isSocialAuthUser(user)) {
       setState("complete");
       return;
     }
@@ -41,7 +41,7 @@ export default function ProfileCompletionRoute() {
     return () => {
       mounted = false;
     };
-  }, [isPreviewMode, session]);
+  }, [isPreviewMode, session, user]);
 
   if (state === "checking") {
     return <p>프로필 정보를 확인하고 있습니다.</p>;
@@ -56,4 +56,9 @@ export default function ProfileCompletionRoute() {
 
 function isProfileComplete(profile: ProfileResponse) {
   return Boolean(profile.full_name.trim() && profile.nickname.trim() && profile.phone_number.trim());
+}
+
+function isSocialAuthUser(user: ReturnType<typeof useAuth>["user"]) {
+  const provider = user?.app_metadata?.provider;
+  return provider === "google" || provider === "kakao";
 }

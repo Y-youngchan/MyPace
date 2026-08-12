@@ -5,6 +5,8 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import { AuthContext } from "./features/auth/AuthProvider";
 import { getProfile } from "./api/profile";
+import { getDashboardSummary } from "./api/dashboard";
+import { apiRequest } from "./api/client";
 import { supabase } from "./lib/supabase";
 
 vi.mock("./lib/supabase", () => ({
@@ -22,7 +24,17 @@ vi.mock("./api/profile", () => ({
   getProfile: vi.fn(),
 }));
 
+vi.mock("./api/dashboard", () => ({
+  getDashboardSummary: vi.fn(),
+}));
+
+vi.mock("./api/client", () => ({
+  apiRequest: vi.fn(),
+}));
+
 const loadProfile = vi.mocked(getProfile);
+const loadDashboard = vi.mocked(getDashboardSummary);
+const request = vi.mocked(apiRequest);
 const auth = vi.mocked(supabase.auth);
 
 function renderApp(
@@ -49,6 +61,28 @@ describe("App", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     auth.exchangeCodeForSession.mockResolvedValue({ data: {}, error: null } as never);
+    request.mockResolvedValue([
+      {
+        id: "income-1",
+        user_id: "user-1",
+        source_id: "source-1",
+        period: "2026-08-01",
+        expected_amount: "3000000",
+        actual_amount: "2900000",
+        received_at: "2026-08-25",
+      },
+    ]);
+    loadDashboard.mockResolvedValue({
+      period: "2026-08-01",
+      expected_income: "2800000.00",
+      monthly_spent: "67000.00",
+      remaining_living_money: "2733000.00",
+      daily_available: "91100.00",
+      budget_usage_percent: 10,
+      recent_transactions: [{ title: "점심 식사", category: "식비", amount: "12000.00" }],
+      budget_progress: [{ category: "식비", used_amount: "12000.00", budget_amount: "500000.00", used_percent: 2, status: "여유" }],
+      weekly_actions: ["이번 주는 예산 사용률이 높은 항목부터 먼저 확인해보세요."],
+    });
     loadProfile.mockResolvedValue({
       user_id: "user-id",
       email: "youngchan@example.com",
