@@ -34,6 +34,14 @@ describe("DesktopSidebar", () => {
     expect(screen.getByLabelText("주요 메뉴 목록")).toHaveClass("whitespace-nowrap");
   });
 
+  it("renders the menu in the recommended user flow order", () => {
+    renderSidebar();
+
+    const menuLabels = screen.getAllByRole("link").map((link) => link.textContent);
+
+    expect(menuLabels).toEqual(["대시보드", "수입", "예산", "거래내역", "카테고리", "캘린더", "분석", "리포트"]);
+  });
+
   it("hides scroll controls when the menu fully fits", async () => {
     renderSidebar();
     mockMenuWidths({ scrollWidth: 600, clientWidth: 600 });

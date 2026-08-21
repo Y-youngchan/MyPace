@@ -17,7 +17,7 @@ def list_categories(
     current_user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[CategoryResponse]:
-    categories = FinanceRepository(db).list_categories(current_user.user_id)
+    categories = FinanceRepository(db).list_categories_with_defaults(current_user.user_id)
     return [_to_response(category) for category in categories]
 
 
@@ -32,7 +32,7 @@ def create_category(
     if repository.category_name_exists(current_user.user_id, name):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="이미 존재하는 카테고리입니다.")
 
-    category = repository.create_category(current_user.user_id, name, category_data.kind)
+    category = repository.create_category(current_user.user_id, name, category_data.kind, category_data.cost_type)
     return _to_response(category)
 
 
@@ -48,7 +48,7 @@ def update_category(
     if repository.category_name_exists(current_user.user_id, name, exclude_category_id=category_id):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="이미 존재하는 카테고리입니다.")
 
-    category = repository.update_category(current_user.user_id, category_id, name, category_data.kind)
+    category = repository.update_category(current_user.user_id, category_id, name, category_data.kind, category_data.cost_type)
     if category is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="카테고리를 찾을 수 없습니다.")
     return _to_response(category)
@@ -60,4 +60,5 @@ def _to_response(category: Category) -> CategoryResponse:
         user_id=category.user_id,
         name=category.name,
         kind=category.category_type,
+        cost_type=category.cost_type,
     )

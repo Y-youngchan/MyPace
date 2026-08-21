@@ -1,5 +1,5 @@
 from collections.abc import Generator
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import uuid4
 
@@ -12,7 +12,7 @@ from sqlalchemy.pool import StaticPool
 from app.database import get_db
 from app.dependencies import CurrentUser, get_current_user
 from app.main import app
-from app.models.entities import Base, Category, FinancialAccount, Transaction
+from app.models.entities import Base, Category, FinancialAccount, IncomeEntry, IncomeSource, Transaction
 
 
 @pytest.fixture()
@@ -111,6 +111,61 @@ def test_listing_transactions_returns_only_the_token_users_rows(
 
     assert response.status_code == 200
     assert [item["description"] for item in response.json()["items"]] == ["내 거래"]
+
+
+def test_listing_transactions_includes_income_entries_as_synthetic_income_rows(
+    client: TestClient,
+    db_session: Session,
+    user_id,
+) -> None:
+    other_user_id = uuid4()
+    owner_source = IncomeSource(user_id=user_id, name="월급", source_type="salary")
+    other_source = IncomeSource(user_id=other_user_id, name="남의 월급", source_type="salary")
+    db_session.add_all([owner_source, other_source])
+    db_session.flush()
+    db_session.add_all(
+        [
+            IncomeEntry(
+                user_id=user_id,
+                source_id=owner_source.id,
+                period=date(2026, 8, 1),
+                expected_amount=Decimal("2800000"),
+                actual_amount=Decimal("2750000"),
+                received_at=date(2026, 8, 25),
+            ),
+            IncomeEntry(
+                user_id=user_id,
+                source_id=owner_source.id,
+                period=date(2026, 7, 1),
+                expected_amount=Decimal("2500000"),
+                actual_amount=None,
+                received_at=None,
+            ),
+            IncomeEntry(
+                user_id=other_user_id,
+                source_id=other_source.id,
+                period=date(2026, 8, 1),
+                expected_amount=Decimal("9990000"),
+                actual_amount=Decimal("9990000"),
+                received_at=date(2026, 8, 25),
+            ),
+        ]
+    )
+    db_session.commit()
+
+    response = client.get("/api/v1/transactions?start=2026-08-01&end=2026-08-31")
+    items = response.json()["items"]
+
+    assert response.status_code == 200
+    assert len(items) == 1
+    assert items[0]["id"] == str(owner_source.entries[0].id)
+    assert items[0]["kind"] == "income"
+    assert items[0]["description"] == "월급"
+    assert items[0]["category_name"] == "월급"
+    assert items[0]["amount"] == "2750000.00"
+    assert items[0]["occurred_at"].startswith("2026-08-25")
+    assert items[0]["is_synthetic"] is True
+    assert items[0]["account_id"] is None
 
 
 def test_transaction_amount_must_be_positive(client: TestClient) -> None:

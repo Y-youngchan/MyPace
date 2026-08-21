@@ -16,6 +16,12 @@ type TransactionNotice = {
   text: string;
 } | null;
 
+const transactionKindFilters: Array<{ label: string; value: TransactionKindFilter }> = [
+  { label: "전체", value: "all" },
+  { label: "지출", value: "expense" },
+  { label: "수입", value: "income" },
+];
+
 function formatTransactionDate(value: string) {
   return value.slice(0, 10);
 }
@@ -39,9 +45,14 @@ function getFirstCategoryName(categories: CategoryEntry[], kind: TransactionEntr
   return categories.find((category) => category.kind === kind)?.name || "";
 }
 
+function getCategoryKindLabel(kind: TransactionEntry["kind"]) {
+  return kind === "income" ? "수입" : "지출";
+}
+
 export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<TransactionEntry[]>([]);
   const [categories, setCategories] = useState<CategoryEntry[]>([]);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const [kindFilter, setKindFilter] = useState<TransactionKindFilter>("all");
   const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
@@ -62,13 +73,15 @@ export default function TransactionsPage() {
   }, [selectedMonth]);
 
   useEffect(() => {
+    setIsLoadingCategories(true);
     apiRequest<CategoryEntry[]>("/categories")
       .then((response) => {
         setCategories(response);
-        setCategoryName((currentCategoryName) => currentCategoryName || getFirstCategoryName(response, kind));
+        setCategoryName((currentCategoryName) => currentCategoryName || getFirstCategoryName(response, "expense"));
       })
-      .catch(() => setNotice({ tone: "error", text: "카테고리 목록을 불러오지 못했어요." }));
-  }, [kind]);
+      .catch(() => setNotice({ tone: "error", text: "카테고리 목록을 불러오지 못했어요." }))
+      .finally(() => setIsLoadingCategories(false));
+  }, []);
 
   const filteredCategories = useMemo(() => categories.filter((category) => category.kind === kind), [categories, kind]);
 
@@ -145,7 +158,10 @@ export default function TransactionsPage() {
         return [saved, ...currentTransactions];
       });
       resetForm();
-      setNotice({ tone: "success", text: editingTransactionId ? "거래가 수정됐어요." : "거래가 저장됐어요." });
+      setNotice({
+        tone: "success",
+        text: editingTransactionId ? "거래가 수정됐어요. 대시보드와 캘린더에도 반영돼요." : "거래가 저장됐어요. 대시보드와 캘린더에 반영돼요.",
+      });
     } catch {
       setNotice({ tone: "error", text: editingTransactionId ? "거래를 수정하지 못했어요." : "거래를 저장하지 못했어요." });
     }
@@ -273,7 +289,28 @@ export default function TransactionsPage() {
                 <option value="manual">직접 입력</option>
               </select>
             </label>
-            {categoryInputMode === "saved" ? (
+            {categoryInputMode === "saved" && isLoadingCategories ? (
+              <div className="grid gap-2 rounded-3xl border border-dashed border-[#b9c8d8] bg-[#f7faf9] p-5">
+                <strong className="text-[#173b68]">카테고리를 불러오는 중이에요.</strong>
+                <p className="m-0 text-sm font-bold leading-6 text-[#66758c]">
+                  기본 카테고리를 확인하고 있어요. 잠시만 기다려주세요.
+                </p>
+              </div>
+            ) : categoryInputMode === "saved" && filteredCategories.length === 0 ? (
+              <div className="grid gap-3 rounded-3xl border border-dashed border-[#b9c8d8] bg-[#f7faf9] p-5">
+                <strong className="text-[#173b68]">{getCategoryKindLabel(kind)} 카테고리가 아직 없어요.</strong>
+                <p className="m-0 text-sm font-bold leading-6 text-[#66758c]">
+                  저장된 카테고리를 쓰려면 먼저 카테고리 목록에서 하나 추가해주세요. 지금 바로 입력하려면 입력 방식을 직접 입력으로 바꿔도
+                  돼요.
+                </p>
+                <a
+                  className="w-fit rounded-full bg-[#eaf1f7] px-4 py-2 text-sm font-extrabold text-[#173b68] no-underline"
+                  href="/categories"
+                >
+                  카테고리 추가하러 가기
+                </a>
+              </div>
+            ) : categoryInputMode === "saved" ? (
               <label className="grid gap-2 font-bold text-[#17253f]">
                 카테고리 선택
                 <select
@@ -282,15 +319,11 @@ export default function TransactionsPage() {
                   onChange={(event) => setCategoryName(event.target.value)}
                   required
                 >
-                  {filteredCategories.length === 0 ? (
-                    <option value="">카테고리 페이지에서 먼저 추가해주세요</option>
-                  ) : (
-                    filteredCategories.map((category) => (
-                      <option key={category.id} value={category.name}>
-                        {category.name}
-                      </option>
-                    ))
-                  )}
+                  {filteredCategories.map((category) => (
+                    <option key={category.id} value={category.name}>
+                      {category.name}
+                    </option>
+                  ))}
                 </select>
               </label>
             ) : (
@@ -358,18 +391,28 @@ export default function TransactionsPage() {
                   onChange={(event) => setSelectedMonth(event.target.value)}
                 />
               </label>
-              <label className="grid gap-2 text-sm font-bold text-[#17253f]">
-                거래 구분 필터
-                <select
-                  className="min-w-0 rounded-2xl border border-[#dfe5e2] bg-white px-4 py-3 outline-[#62c6ae]"
-                  value={kindFilter}
-                  onChange={(event) => setKindFilter(event.target.value as TransactionKindFilter)}
-                >
-                  <option value="all">전체</option>
-                  <option value="expense">지출</option>
-                  <option value="income">수입</option>
-                </select>
-              </label>
+              <div className="grid gap-2 text-sm font-bold text-[#17253f]">
+                <span>거래 구분 필터</span>
+                <div aria-label="거래 구분 필터" className="grid grid-cols-3 rounded-[20px] bg-[#eaf1f7] p-1">
+                  {transactionKindFilters.map((filter) => {
+                    const isActive = kindFilter === filter.value;
+
+                    return (
+                      <button
+                        aria-pressed={isActive}
+                        className={`cursor-pointer rounded-[16px] border-0 px-3 py-3 text-sm font-extrabold ${
+                          isActive ? "bg-[#173b68] text-white shadow-[0_10px_22px_rgba(23,59,104,0.18)]" : "bg-transparent text-[#51617a]"
+                        }`}
+                        key={filter.value}
+                        onClick={() => setKindFilter(filter.value)}
+                        type="button"
+                      >
+                        {filter.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
           {visibleTransactions.length === 0 ? (
@@ -378,60 +421,68 @@ export default function TransactionsPage() {
               <p className="m-0 mt-2 text-[#66758c]">조회 월이나 거래 구분을 바꾸거나 새 거래를 입력해보세요.</p>
             </div>
           ) : (
-            <ul className="mt-5 grid list-none gap-3 p-0">
-              {visibleTransactions.map((transaction) => (
-                <li
-                  className="grid gap-4 rounded-3xl border border-[#dfe5e2] bg-[#fbfcfb] p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
-                  key={transaction.id}
-                >
-                  <div className="grid gap-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <strong className="text-lg text-[#17253f]">{transaction.description || "메모 없는 거래"}</strong>
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-bold ${
-                          transaction.kind === "expense" ? "bg-[#fff1ef] text-[#9f3328]" : "bg-[#eef8f5] text-[#3b947f]"
+            <div aria-label="스크롤 가능한 최근 거래 목록" className="mt-5 max-h-[560px] overflow-y-auto pr-2 max-[1100px]:max-h-[460px]">
+              <ul className="grid list-none gap-3 p-0">
+                {visibleTransactions.map((transaction) => (
+                  <li
+                    className="grid gap-4 rounded-3xl border border-[#dfe5e2] bg-[#fbfcfb] p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                    key={transaction.id}
+                  >
+                    <div className="grid gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <strong className="text-lg text-[#17253f]">{transaction.description || "메모 없는 거래"}</strong>
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-bold ${
+                            transaction.kind === "expense" ? "bg-[#fff1ef] text-[#9f3328]" : "bg-[#eef8f5] text-[#3b947f]"
+                          }`}
+                        >
+                          {transaction.kind === "expense" ? "지출" : "수입"}
+                        </span>
+                        {transaction.category_name && (
+                          <span className="rounded-full bg-[#eaf1f7] px-3 py-1 text-xs font-bold text-[#173b68]">
+                            {transaction.category_name}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-sm font-bold text-[#66758c]">{formatTransactionDate(transaction.occurred_at)}</span>
+                    </div>
+                    <div className="grid justify-items-start gap-3 sm:justify-items-end">
+                      <strong
+                        className={`text-xl tracking-[-0.04em] ${
+                          transaction.kind === "expense" ? "text-[#9f3328]" : "text-[#173b68]"
                         }`}
                       >
-                        {transaction.kind === "expense" ? "지출" : "수입"}
-                      </span>
-                      {transaction.category_name && (
-                        <span className="rounded-full bg-[#eaf1f7] px-3 py-1 text-xs font-bold text-[#173b68]">
-                          {transaction.category_name}
+                        <MoneyText amount={getSignedAmount(transaction)} />
+                      </strong>
+                      {transaction.is_synthetic ? (
+                        <span className="rounded-full bg-[#eef8f5] px-3 py-2 text-sm font-extrabold text-[#3b947f]">
+                          수입 메뉴에서 관리
                         </span>
+                      ) : (
+                        <div className="flex gap-2">
+                          <button
+                            aria-label={`${transaction.description || "메모 없는 거래"} 수정`}
+                            className="cursor-pointer rounded-full border-0 bg-[#eaf1f7] px-3 py-2 text-sm font-extrabold text-[#173b68]"
+                            onClick={() => handleStartEdit(transaction)}
+                            type="button"
+                          >
+                            수정
+                          </button>
+                          <button
+                            aria-label={`${transaction.description || "메모 없는 거래"} 삭제`}
+                            className="cursor-pointer rounded-full border-0 bg-[#fff1ef] px-3 py-2 text-sm font-extrabold text-[#9f3328]"
+                            onClick={() => handleDelete(transaction)}
+                            type="button"
+                          >
+                            삭제
+                          </button>
+                        </div>
                       )}
                     </div>
-                    <span className="text-sm font-bold text-[#66758c]">{formatTransactionDate(transaction.occurred_at)}</span>
-                  </div>
-                  <div className="grid justify-items-start gap-3 sm:justify-items-end">
-                    <strong
-                      className={`text-xl tracking-[-0.04em] ${
-                        transaction.kind === "expense" ? "text-[#9f3328]" : "text-[#173b68]"
-                      }`}
-                    >
-                      <MoneyText amount={getSignedAmount(transaction)} />
-                    </strong>
-                    <div className="flex gap-2">
-                      <button
-                        aria-label={`${transaction.description || "메모 없는 거래"} 수정`}
-                        className="cursor-pointer rounded-full border-0 bg-[#eaf1f7] px-3 py-2 text-sm font-extrabold text-[#173b68]"
-                        onClick={() => handleStartEdit(transaction)}
-                        type="button"
-                      >
-                        수정
-                      </button>
-                      <button
-                        aria-label={`${transaction.description || "메모 없는 거래"} 삭제`}
-                        className="cursor-pointer rounded-full border-0 bg-[#fff1ef] px-3 py-2 text-sm font-extrabold text-[#9f3328]"
-                        onClick={() => handleDelete(transaction)}
-                        type="button"
-                      >
-                        삭제
-                      </button>
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </AppCard>
       </section>

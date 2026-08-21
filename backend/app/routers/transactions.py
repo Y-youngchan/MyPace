@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import UTC, date, datetime, time
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import CurrentUser, get_current_user
-from app.models.entities import Transaction
+from app.models.entities import IncomeEntry, Transaction
 from app.repositories.finance_repository import FinanceRepository
 from app.schemas.finance import TransactionCreate, TransactionListResponse, TransactionResponse, TransactionUpdate
 
@@ -20,10 +20,15 @@ def list_transactions(
     current_user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> TransactionListResponse:
-    transactions = FinanceRepository(db).list_transactions(current_user.user_id, start, end)
+    repository = FinanceRepository(db)
+    transactions = repository.list_transactions(current_user.user_id, start, end)
+    income_entries = _filter_income_entries(repository.list_income_entries(current_user.user_id), start, end)
+    items = [_to_response(transaction) for transaction in transactions] + [_income_to_response(entry) for entry in income_entries]
+    items.sort(key=lambda item: item.occurred_at, reverse=True)
+
     return TransactionListResponse(
-        items=[_to_response(transaction) for transaction in transactions],
-        total=len(transactions),
+        items=items,
+        total=len(items),
     )
 
 
@@ -79,3 +84,40 @@ def _to_response(transaction: Transaction) -> TransactionResponse:
         account_id=transaction.account_id,
         is_synthetic=transaction.is_synthetic,
     )
+
+
+def _income_to_response(entry: IncomeEntry) -> TransactionResponse:
+    occurred_on = entry.received_at or entry.period
+    amount = entry.actual_amount or entry.expected_amount
+    source_name = entry.source.name if entry.source else "기본 수입"
+
+    return TransactionResponse(
+        id=entry.id,
+        user_id=entry.user_id,
+        amount=amount,
+        kind="income",
+        occurred_at=datetime.combine(occurred_on, time.min, tzinfo=UTC),
+        description=source_name,
+        category_name=source_name,
+        category_id=None,
+        account_id=None,
+        is_synthetic=True,
+    )
+
+
+def _filter_income_entries(
+    entries: list[IncomeEntry],
+    start: date | None,
+    end: date | None,
+) -> list[IncomeEntry]:
+    filtered_entries: list[IncomeEntry] = []
+
+    for entry in entries:
+        event_date = entry.received_at or entry.period
+        if start is not None and event_date < start:
+            continue
+        if end is not None and event_date > end:
+            continue
+        filtered_entries.append(entry)
+
+    return filtered_entries

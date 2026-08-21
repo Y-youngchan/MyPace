@@ -151,11 +151,16 @@ describe("TransactionsPage", () => {
     expect(await screen.findByText("점심 식사")).toBeInTheDocument();
     expect(screen.getByText("월급")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("거래 구분 필터"), { target: { value: "income" } });
+    fireEvent.click(screen.getByRole("button", { name: "수입" }));
 
     expect(screen.queryByText("점심 식사")).not.toBeInTheDocument();
     expect(screen.getByText("월급")).toBeInTheDocument();
     expect(screen.getAllByText("2,800,000원").length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "전체" }));
+
+    expect(screen.getByText("점심 식사")).toBeInTheDocument();
+    expect(screen.getByText("월급")).toBeInTheDocument();
   });
 
   it("loads categories and shows only categories matching the selected transaction kind", async () => {
@@ -209,6 +214,87 @@ describe("TransactionsPage", () => {
     expect(request).toHaveBeenCalledWith("/transactions?start=2026-07-01&end=2026-07-31");
   });
 
+  it("keeps the recent transaction list inside a scrollable area", async () => {
+    render(<TransactionsPage />);
+
+    expect(await screen.findByText("점심 식사")).toBeInTheDocument();
+
+    expect(screen.getByLabelText("스크롤 가능한 최근 거래 목록")).toHaveClass("overflow-y-auto");
+  });
+
+  it("shows income entries from the income page as read-only synthetic transactions", async () => {
+    request.mockImplementation((path) => {
+      if (path === "/categories") {
+        return Promise.resolve(defaultCategories);
+      }
+      if (typeof path === "string" && path.startsWith("/transactions?")) {
+        return Promise.resolve({
+          items: [
+            {
+              id: "income-entry-1",
+              user_id: "user-1",
+              amount: "2750000.00",
+              kind: "income",
+              occurred_at: "2026-08-25T00:00:00+00:00",
+              description: "월급",
+              category_name: "월급",
+              category_id: null,
+              account_id: null,
+              is_synthetic: true,
+            },
+          ],
+          total: 1,
+        });
+      }
+      return Promise.reject(new Error(`Unhandled request: ${path}`));
+    });
+
+    render(<TransactionsPage />);
+
+    expect((await screen.findAllByText("월급")).length).toBeGreaterThan(0);
+    expect(screen.getByText("수입 메뉴에서 관리")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "월급 수정" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "월급 삭제" })).not.toBeInTheDocument();
+  });
+
+  it("links to the categories page when there are no saved categories for the selected kind", async () => {
+    request.mockImplementation((path) => {
+      if (path === "/categories") {
+        return Promise.resolve([{ id: "category-2", user_id: "user-1", name: "급여", kind: "income" }]);
+      }
+      if (typeof path === "string" && path.startsWith("/transactions?")) {
+        return Promise.resolve(defaultTransactions);
+      }
+      return Promise.reject(new Error(`Unhandled request: ${path}`));
+    });
+
+    render(<TransactionsPage />);
+
+    expect(await screen.findByText("점심 식사")).toBeInTheDocument();
+
+    expect(screen.getByText("지출 카테고리가 아직 없어요.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "카테고리 추가하러 가기" })).toHaveAttribute("href", "/categories");
+  });
+
+  it("shows category loading state instead of an empty category guide before categories load", async () => {
+    request.mockImplementation((path) => {
+      if (path === "/categories") {
+        return new Promise(() => undefined);
+      }
+      if (typeof path === "string" && path.startsWith("/transactions?")) {
+        return Promise.resolve(defaultTransactions);
+      }
+      return Promise.reject(new Error(`Unhandled request: ${path}`));
+    });
+
+    render(<TransactionsPage />);
+
+    expect(await screen.findByText("점심 식사")).toBeInTheDocument();
+
+    expect(screen.getByText("카테고리를 불러오는 중이에요.")).toBeInTheDocument();
+    expect(screen.queryByText("지출 카테고리가 아직 없어요.")).not.toBeInTheDocument();
+  });
+
   it("formats money input and saves a new expense transaction", async () => {
     render(<TransactionsPage />);
 
@@ -234,7 +320,7 @@ describe("TransactionsPage", () => {
         }),
       });
     });
-    expect(await screen.findByRole("status")).toHaveTextContent("거래가 저장됐어요.");
+    expect(await screen.findByRole("status")).toHaveTextContent("거래가 저장됐어요. 대시보드와 캘린더에 반영돼요.");
     expect(screen.getAllByText("카페").length).toBeGreaterThan(0);
   });
 
@@ -267,7 +353,7 @@ describe("TransactionsPage", () => {
         }),
       });
     });
-    expect(await screen.findByRole("status")).toHaveTextContent("거래가 수정됐어요.");
+    expect(await screen.findByRole("status")).toHaveTextContent("거래가 수정됐어요. 대시보드와 캘린더에도 반영돼요.");
     expect(screen.getByText("저녁 식사")).toBeInTheDocument();
     expect(screen.queryByText("점심 식사")).not.toBeInTheDocument();
   });

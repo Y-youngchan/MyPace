@@ -26,7 +26,7 @@ export type TransactionEntry = {
   description: string;
   category_name?: string | null;
   category_id: string | null;
-  account_id: string;
+  account_id: string | null;
   is_synthetic: boolean;
 };
 
@@ -40,6 +40,7 @@ export type CategoryEntry = {
   user_id: string;
   name: string;
   kind: "income" | "expense";
+  cost_type: "fixed" | "variable" | null;
 };
 
 export type CalendarEvent = {

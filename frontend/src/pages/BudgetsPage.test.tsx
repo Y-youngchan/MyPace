@@ -53,7 +53,7 @@ describe("BudgetsPage", () => {
     expect(screen.getByText("월 수입 기준선")).toBeInTheDocument();
     expect(await screen.findByText("2,900,000원")).toBeInTheDocument();
     expect(screen.queryByText("2,750,000원")).not.toBeInTheDocument();
-    expect(screen.getByText("추천 예산 배분")).toBeInTheDocument();
+    expect(screen.getByText("예산 배분 조정")).toBeInTheDocument();
     expect(screen.getByText("고정비")).toBeInTheDocument();
     expect(screen.getByText("생활비")).toBeInTheDocument();
     expect(screen.getByText("저축")).toBeInTheDocument();
@@ -194,5 +194,80 @@ describe("BudgetsPage", () => {
       });
     });
     expect(await screen.findByRole("status")).toHaveTextContent("예산이 저장됐어요.");
+  });
+
+  it("lets users change allocation ratios before saving the budget", async () => {
+    const currentPeriod = `${new Date().toISOString().slice(0, 7)}-01`;
+    request.mockResolvedValueOnce({
+      id: "budget-1",
+      user_id: "user-1",
+      period: currentPeriod,
+      basis_income_amount: "2900000",
+      status: "accepted",
+      items: {
+        고정비: "1160000",
+        생활비: "1015000",
+        저축: "580000",
+        여유금: "203000",
+      },
+    });
+
+    render(<BudgetsPage />);
+
+    expect(await screen.findByText("2,900,000원")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("고정비 비율"), { target: { value: "40" } });
+    expect(await screen.findByText("1,160,000원")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "예산 확정 저장" }));
+
+    await waitFor(() => {
+      expect(request).toHaveBeenCalledWith(`/budgets/${currentPeriod}`, {
+        method: "PUT",
+        body: expect.stringContaining('"category_name":"고정비","amount":1160000'),
+      });
+    });
+  });
+
+  it("automatically adjusts spare money so editable ratios add up to 100 percent", async () => {
+    const currentPeriod = `${new Date().toISOString().slice(0, 7)}-01`;
+
+    render(<BudgetsPage />);
+
+    expect(await screen.findByText("2,900,000원")).toBeInTheDocument();
+    expect(screen.getByLabelText("여유금 비율")).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("고정비 비율"), { target: { value: "40" } });
+
+    expect(screen.getByLabelText("여유금 비율")).toHaveValue(5);
+    expect(screen.getByText("현재 비율 합계 100%")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "예산 확정 저장" }));
+
+    await waitFor(() => {
+      expect(request).toHaveBeenCalledWith(`/budgets/${currentPeriod}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          basis_income_amount: 2900000,
+          items: [
+            { category_name: "고정비", amount: 1160000, reason: "월세, 통신비, 구독료처럼 매달 빠지는 돈" },
+            { category_name: "생활비", amount: 1015000, reason: "식비, 교통, 카페, 쇼핑까지 매일 쓰는 돈" },
+            { category_name: "저축", amount: 580000, reason: "먼저 빼두면 흔들리지 않는 돈" },
+            { category_name: "여유금", amount: 145000, reason: "예상 밖 지출을 막아주는 완충 금액" },
+          ],
+        }),
+      });
+    });
+  });
+
+  it("blocks saving when editable ratios go over 100 percent", async () => {
+    render(<BudgetsPage />);
+
+    expect(await screen.findByText("2,900,000원")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("저축 비율"), { target: { value: "30" } });
+
+    expect(screen.getByLabelText("여유금 비율")).toHaveValue(0);
+    expect(screen.getByText("비율 합계가 100%를 넘었어요. 다른 항목을 줄여주세요.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "예산 확정 저장" })).toBeDisabled();
   });
 });

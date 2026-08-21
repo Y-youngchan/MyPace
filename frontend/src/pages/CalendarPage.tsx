@@ -33,13 +33,15 @@ function eventTone(eventType: CalendarEvent["event_type"]) {
 
 export default function CalendarPage() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [selectedPeriod, setSelectedPeriod] = useState(currentPeriod);
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    apiRequest<CalendarEvent[]>(`/calendar/events?period=${currentPeriod}`)
-      .then(setEvents)
+    setNotice(null);
+    apiRequest<CalendarEvent[]>(`/calendar/events?period=${selectedPeriod}`)
+      .then((response) => setEvents(response))
       .catch(() => setNotice("캘린더 일정을 불러오지 못했어요. 로그인/서버 연결을 확인해주세요."));
-  }, []);
+  }, [selectedPeriod]);
 
   const eventsByDate = useMemo(() => {
     return events.reduce<Record<string, CalendarEvent[]>>((groupedEvents, event) => {
@@ -54,7 +56,7 @@ export default function CalendarPage() {
   const expenseTotal = events
     .filter((event) => event.event_type === "expense")
     .reduce((total, event) => total + Number(event.amount ?? 0), 0);
-  const monthDays = getMonthDays(currentPeriod);
+  const monthDays = getMonthDays(selectedPeriod);
 
   return (
     <div className="grid w-full max-w-[1680px] gap-7">
@@ -98,10 +100,21 @@ export default function CalendarPage() {
               Money Schedule
             </p>
             <h2 className="m-0 mt-2 text-2xl font-extrabold tracking-[-0.04em] text-[#17253f]">
-              {currentPeriod.replace("-", "년 ")}월 캘린더
+              {selectedPeriod.replace("-", "년 ")}월 캘린더
             </h2>
           </div>
-          <span className="rounded-full bg-[#eaf1f7] px-4 py-2 text-sm font-bold text-[#173b68]">DB 데이터 기준</span>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="grid gap-2 text-sm font-bold text-[#17253f]">
+              조회 월
+              <input
+                className="min-w-0 rounded-2xl border border-[#dfe5e2] bg-white px-4 py-3 outline-[#62c6ae]"
+                onChange={(event) => setSelectedPeriod(event.target.value)}
+                type="month"
+                value={selectedPeriod}
+              />
+            </label>
+            <span className="rounded-full bg-[#eaf1f7] px-4 py-3 text-sm font-bold text-[#173b68]">DB 데이터 기준</span>
+          </div>
         </div>
 
         {events.length === 0 && !notice ? (
@@ -117,7 +130,7 @@ export default function CalendarPage() {
               </div>
             ))}
             {monthDays.map((day, index) => {
-              const dateKey = day ? formatDay(currentPeriod, day) : `blank-${index}`;
+              const dateKey = day ? formatDay(selectedPeriod, day) : `blank-${index}`;
               const dayEvents = day ? eventsByDate[dateKey] ?? [] : [];
 
               return (

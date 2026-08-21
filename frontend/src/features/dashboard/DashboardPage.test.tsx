@@ -54,10 +54,34 @@ describe("DashboardPage", () => {
     expect(screen.getByText("2% · 여유")).toBeInTheDocument();
   });
 
-  it("links dashboard transaction actions to the transactions page", () => {
+  it("guides first-time users to enter income, budgets, and transactions", async () => {
+    loadDashboard.mockResolvedValueOnce({
+      period: "2026-08-01",
+      expected_income: "0.00",
+      monthly_spent: "0.00",
+      remaining_living_money: "0.00",
+      daily_available: "0.00",
+      budget_usage_percent: 0,
+      recent_transactions: [],
+      budget_progress: [],
+      weekly_actions: ["수입을 먼저 입력하면 이번 달 예산 기준선을 만들 수 있어요."],
+    });
+
     renderDashboardPage();
 
+    expect(await screen.findByRole("heading", { name: "처음 시작을 도와드릴게요" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "수입 입력하기" })).toHaveAttribute("href", "/income");
+    expect(screen.getByRole("link", { name: "예산 만들기" })).toHaveAttribute("href", "/budgets");
+    expect(screen.getByRole("link", { name: "거래 추가하기" })).toHaveAttribute("href", "/transactions");
     expect(screen.getByRole("link", { name: "거래 추가" })).toHaveAttribute("href", "/transactions");
+    expect(screen.getByText("아직 거래가 없어요.")).toBeInTheDocument();
+    expect(screen.getByText("예산을 만들면 카테고리별 사용 속도를 볼 수 있어요.")).toBeInTheDocument();
+  });
+
+  it("keeps dashboard transaction actions inside the content cards", () => {
+    renderDashboardPage();
+
+    expect(screen.queryByRole("link", { name: "거래 추가" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "전체 보기" })).toHaveAttribute("href", "/transactions");
   });
 

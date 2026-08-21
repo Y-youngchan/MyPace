@@ -152,7 +152,7 @@ describe("App", () => {
     renderApp("/budgets");
 
     expect(await screen.findByRole("heading", { name: "예산" })).toBeInTheDocument();
-    expect(screen.getByText("추천 예산 배분")).toBeInTheDocument();
+    expect(screen.getByText("예산 배분 조정")).toBeInTheDocument();
   });
 
   it("renders the calendar page route", async () => {
@@ -161,9 +161,29 @@ describe("App", () => {
     expect(await screen.findByRole("heading", { name: "캘린더" })).toBeInTheDocument();
   });
 
+  it("renders the analytics page route with live summary data", async () => {
+    renderApp("/analytics");
+
+    expect(await screen.findByRole("heading", { name: "분석" })).toBeInTheDocument();
+    expect(screen.getByText("이번 달 수입, 지출, 예산 사용 속도를 한눈에 정리해요.")).toBeInTheDocument();
+  });
+
+  it("renders the reports page route with live summary data", async () => {
+    renderApp("/reports");
+
+    expect(await screen.findByRole("heading", { name: "리포트" })).toBeInTheDocument();
+    expect(screen.getByText("이번 달 돈 흐름을 읽기 쉬운 월간 리포트로 정리해요.")).toBeInTheDocument();
+  });
+
   it("shows a logout button in protected pages", () => {
     renderApp("/dashboard");
 
     expect(screen.getByRole("button", { name: "로그아웃" })).toBeInTheDocument();
+  });
+
+  it("shows a profile button in protected pages", () => {
+    renderApp("/dashboard");
+
+    expect(screen.getByRole("link", { name: "프로필" })).toHaveAttribute("href", "/profile");
   });
 });

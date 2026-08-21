@@ -14,6 +14,8 @@ const allocationRules = [
   { label: "여유금", ratio: 7, note: "예상 밖 지출을 막아주는 완충 금액" },
 ];
 
+const SPARE_MONEY_LABEL = "여유금";
+
 type BudgetNotice = {
   tone: "success" | "error";
   message: string;
@@ -65,6 +67,7 @@ export default function BudgetsPage() {
   const [incomeBaseline, setIncomeBaseline] = useState<number | null>(null);
   const [baselineLabel, setBaselineLabel] = useState("수입 데이터 없음");
   const [savedAllocationCards, setSavedAllocationCards] = useState<AllocationCard[] | null>(null);
+  const [customRatios, setCustomRatios] = useState<Record<string, number>>({});
   const [categoryBudgets, setCategoryBudgets] = useState<DashboardBudgetProgress[]>([]);
   const [budgetTips, setBudgetTips] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
@@ -79,6 +82,7 @@ export default function BudgetsPage() {
             setIncomeBaseline(null);
             setBaselineLabel("수입 데이터 없음");
             setSavedAllocationCards(null);
+            setCustomRatios({});
             return;
           }
           const actualAmount = Number(latestEntry.actual_amount ?? 0);
@@ -86,16 +90,19 @@ export default function BudgetsPage() {
             setIncomeBaseline(actualAmount);
             setBaselineLabel("실제 입금 기준");
             setSavedAllocationCards(null);
+            setCustomRatios({});
             return;
           }
           setIncomeBaseline(Number(latestEntry.expected_amount));
           setBaselineLabel("예상 수입 기준");
           setSavedAllocationCards(null);
+          setCustomRatios({});
         })
         .catch(() => {
           setIncomeBaseline(null);
           setBaselineLabel("수입 데이터 없음");
           setSavedAllocationCards(null);
+          setCustomRatios({});
         });
 
     apiRequest<BudgetResponse>(`/budgets/${getCurrentBudgetPeriod()}`)
@@ -103,6 +110,7 @@ export default function BudgetsPage() {
         setIncomeBaseline(Number(entries.basis_income_amount));
         setBaselineLabel("저장된 예산 기준");
         setSavedAllocationCards(buildSavedAllocationCards(entries));
+        setCustomRatios({});
       })
       .catch(() => {
         void loadIncomeBaseline();
@@ -121,14 +129,66 @@ export default function BudgetsPage() {
       });
   }, []);
 
-  const allocationCards = useMemo(
+  const baseAllocationCards = useMemo(
     () => savedAllocationCards ?? (incomeBaseline === null ? [] : calculateBudgetAllocation(incomeBaseline, allocationRules)),
     [incomeBaseline, savedAllocationCards],
   );
 
+  const allocationCards = useMemo(
+    () => {
+      const editableRatioTotal = baseAllocationCards
+        .filter((card) => card.label !== SPARE_MONEY_LABEL)
+        .reduce((sum, card) => sum + (customRatios[card.label] ?? card.ratio), 0);
+      const spareRatio = Math.max(0, 100 - editableRatioTotal);
+
+      return baseAllocationCards.map((card) => {
+        const customRatio = customRatios[card.label];
+        if (card.label === SPARE_MONEY_LABEL) {
+          return {
+            ...card,
+            ratio: spareRatio,
+            amount: incomeBaseline === null ? card.amount : Math.round((incomeBaseline * spareRatio) / 100),
+          };
+        }
+        if (customRatio === undefined) {
+          return card;
+        }
+        return {
+          ...card,
+          ratio: customRatio,
+          amount: incomeBaseline === null ? card.amount : Math.round((incomeBaseline * customRatio) / 100),
+        };
+      });
+    },
+    [baseAllocationCards, customRatios, incomeBaseline],
+  );
+
+  const totalRatio = allocationCards.reduce((sum, item) => sum + item.ratio, 0);
+  const editableRatioTotal = allocationCards
+    .filter((item) => item.label !== SPARE_MONEY_LABEL)
+    .reduce((sum, item) => sum + item.ratio, 0);
+  const isRatioOverLimit = editableRatioTotal > 100;
+
+  const handleRatioChange = (label: string, nextValue: string) => {
+    if (label === SPARE_MONEY_LABEL) {
+      return;
+    }
+    const nextRatio = Math.max(0, Math.min(100, Number(nextValue) || 0));
+    setCustomRatios((current) => ({
+      ...current,
+      [label]: nextRatio,
+    }));
+    setSavedAllocationCards(null);
+    setBaselineLabel((currentLabel) => (currentLabel === "저장된 예산 기준" ? "수정 중인 예산 기준" : currentLabel));
+  };
+
   const handleSaveBudget = async () => {
     if (incomeBaseline === null || allocationCards.length === 0) {
       setBudgetNotice({ tone: "error", message: "수입 데이터가 있어야 예산을 저장할 수 있어요." });
+      return;
+    }
+    if (isRatioOverLimit) {
+      setBudgetNotice({ tone: "error", message: "비율 합계가 100%를 넘었어요. 다른 항목을 줄여주세요." });
       return;
     }
 
@@ -186,15 +246,15 @@ export default function BudgetsPage() {
 
         <AppCard className="bg-[#173b68] text-white">
           <p className="m-0 text-[0.82rem] font-extrabold tracking-[0.08em] text-white/70 uppercase">Recommended Pace</p>
-          <h2 className="my-2.5 text-2xl font-extrabold tracking-[-0.04em]">추천 예산 배분</h2>
+          <h2 className="my-2.5 text-2xl font-extrabold tracking-[-0.04em]">예산 배분 조정</h2>
           <p className="m-0 text-white/80">
-            고정비를 먼저 잠그고, 생활비는 하루 단위로 쪼개서 보는 방식이에요. 남는 금액은 저축과 여유금으로
-            분리해두면 월말에 흔들릴 가능성이 줄어요.
+            처음에는 추천 비율로 시작하고, 내 생활 패턴에 맞게 각 항목 비율을 직접 바꿀 수 있어요. 저장하면
+            조정한 금액이 이번 달 예산으로 반영돼요.
           </p>
           <div className="mt-6 flex flex-wrap items-center gap-3">
             <button
               className="rounded-full bg-white px-5 py-3 text-sm font-extrabold text-[#173b68] shadow-[0_14px_30px_rgba(0,0,0,0.14)] transition hover:-translate-y-0.5 hover:bg-[#f6f9fc] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
-              disabled={isSaving || incomeBaseline === null || allocationCards.length === 0}
+              disabled={isSaving || incomeBaseline === null || allocationCards.length === 0 || isRatioOverLimit}
               onClick={handleSaveBudget}
               type="button"
             >
@@ -211,6 +271,16 @@ export default function BudgetsPage() {
               </p>
             ) : null}
           </div>
+          {allocationCards.length > 0 ? (
+            <div className="mt-4 grid gap-2">
+              <p className="m-0 text-sm font-bold text-white/75">현재 비율 합계 {totalRatio}%</p>
+              {isRatioOverLimit ? (
+                <p className="m-0 text-sm font-extrabold text-[#ffd0d0]">비율 합계가 100%를 넘었어요. 다른 항목을 줄여주세요.</p>
+              ) : (
+                <p className="m-0 text-sm font-bold text-white/70">여유금은 남은 비율로 자동 계산돼요.</p>
+              )}
+            </div>
+          ) : null}
         </AppCard>
       </section>
 
@@ -227,6 +297,23 @@ export default function BudgetsPage() {
               <strong className="text-[clamp(1.5rem,2vw,2rem)] tracking-[-0.04em] text-[#173b68]">
                 <MoneyText amount={item.amount} />
               </strong>
+              <label className="grid gap-2 text-sm font-extrabold text-[#66758c]" htmlFor={`budget-ratio-${item.label}`}>
+                {item.label} 비율
+                <div className="flex items-center gap-2">
+                  <input
+                    className="w-full rounded-2xl border border-[#dfe5e2] bg-white px-4 py-2 text-[#173b68] outline-[#62c6ae] disabled:bg-[#f2f5f7] disabled:text-[#66758c]"
+                    id={`budget-ratio-${item.label}`}
+                    aria-label={`${item.label} 비율`}
+                    disabled={item.label === SPARE_MONEY_LABEL}
+                    max={100}
+                    min={0}
+                    onChange={(event) => handleRatioChange(item.label, event.target.value)}
+                    type="number"
+                    value={item.ratio}
+                  />
+                  <span>%</span>
+                </div>
+              </label>
               <p className="m-0 text-sm text-[#66758c]">{item.note}</p>
             </AppCard>
           ))

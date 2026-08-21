@@ -97,6 +97,7 @@ class Category(Base, TimestampMixin):
     user_id: Mapped[UUID] = mapped_column(index=True)
     name: Mapped[str] = mapped_column(String(80))
     category_type: Mapped[str] = mapped_column(String(30))
+    cost_type: Mapped[Optional[str]] = mapped_column(String(30))
 
 
 class Transaction(Base, TimestampMixin):

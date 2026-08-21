@@ -92,7 +92,7 @@ class TransactionResponse(BaseModel):
     description: str
     category_name: str | None = None
     category_id: UUID | None
-    account_id: UUID
+    account_id: UUID | None
     is_synthetic: bool
 
 
@@ -104,11 +104,13 @@ class TransactionListResponse(BaseModel):
 class CategoryCreate(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     kind: Literal["income", "expense"]
+    cost_type: Literal["fixed", "variable"] | None = None
 
 
 class CategoryUpdate(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     kind: Literal["income", "expense"]
+    cost_type: Literal["fixed", "variable"] | None = None
 
 
 class CategoryResponse(BaseModel):
@@ -116,6 +118,7 @@ class CategoryResponse(BaseModel):
     user_id: UUID
     name: str
     kind: Literal["income", "expense"]
+    cost_type: Literal["fixed", "variable"] | None = None
 
 
 class CalendarEventResponse(BaseModel):

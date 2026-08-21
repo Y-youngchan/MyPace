@@ -77,7 +77,6 @@ export default function ProfileSetupPage() {
           maxLength={10}
           required
         />
-        <p className="m-0 text-xs font-bold text-[#66758c]">동일한 닉네임은 자동 태그번호로 구분돼요.</p>
 
         <label className="font-bold text-[#17253f]" htmlFor="profile-phone-number">
           휴대폰번호

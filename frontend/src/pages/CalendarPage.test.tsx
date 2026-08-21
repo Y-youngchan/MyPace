@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import CalendarPage from "./CalendarPage";
 import { apiRequest } from "../api/client";
@@ -47,5 +47,31 @@ describe("CalendarPage", () => {
     render(<CalendarPage />);
 
     expect(await screen.findByText("이번 달 돈 일정이 아직 없어요.")).toBeInTheDocument();
+  });
+
+  it("reloads calendar events when the selected month changes", async () => {
+    request
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: "transaction-2",
+          event_date: "2026-07-10",
+          event_type: "expense",
+          title: "7월 교통비",
+          amount: "55000",
+        },
+      ]);
+
+    render(<CalendarPage />);
+
+    expect(await screen.findByText("이번 달 돈 일정이 아직 없어요.")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("조회 월"), { target: { value: "2026-07" } });
+
+    await waitFor(() => {
+      expect(request).toHaveBeenLastCalledWith("/calendar/events?period=2026-07");
+    });
+    expect(await screen.findByText("7월 교통비")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "2026년 07월 캘린더" })).toBeInTheDocument();
   });
 });

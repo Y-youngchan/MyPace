@@ -20,6 +20,35 @@ from app.models.entities import (
 from app.schemas.finance import BudgetUpsert, IncomeEntryCreate, ProfileUpsert, SignupProfileCreate, TransactionCreate, TransactionUpdate
 
 
+DEFAULT_CATEGORY_TEMPLATES = (
+    ("월세/관리비", "expense", "fixed"),
+    ("통신비", "expense", "fixed"),
+    ("보험료", "expense", "fixed"),
+    ("구독료", "expense", "fixed"),
+    ("대출/할부", "expense", "fixed"),
+    ("교통 정기권", "expense", "fixed"),
+    ("공과금", "expense", "fixed"),
+    ("교육비", "expense", "fixed"),
+    ("저축/적금", "expense", "fixed"),
+    ("기타 고정비", "expense", "fixed"),
+    ("식비", "expense", "variable"),
+    ("카페/간식", "expense", "variable"),
+    ("교통", "expense", "variable"),
+    ("쇼핑", "expense", "variable"),
+    ("생활용품", "expense", "variable"),
+    ("병원/약국", "expense", "variable"),
+    ("문화/취미", "expense", "variable"),
+    ("경조사", "expense", "variable"),
+    ("여행", "expense", "variable"),
+    ("기타 지출", "expense", "variable"),
+    ("월급", "income", None),
+    ("부수입", "income", None),
+    ("보너스", "income", None),
+    ("환급/정산", "income", None),
+    ("기타 수입", "income", None),
+)
+
+
 class FinanceRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
@@ -236,8 +265,32 @@ class FinanceRepository:
         return True
 
     def list_categories(self, user_id: UUID) -> list[Category]:
-        statement = select(Category).where(Category.user_id == user_id).order_by(Category.category_type.asc(), Category.name.asc())
+        statement = (
+            select(Category)
+            .where(
+                Category.user_id == user_id,
+                Category.category_type.in_(("expense", "income")),
+            )
+            .order_by(Category.category_type.asc(), Category.name.asc())
+        )
         return list(self.db.scalars(statement))
+
+    def list_categories_with_defaults(self, user_id: UUID) -> list[Category]:
+        existing_categories = self.list_categories(user_id)
+        existing_names = {category.name for category in existing_categories}
+        missing_templates = [
+            (name, category_type, cost_type)
+            for name, category_type, cost_type in DEFAULT_CATEGORY_TEMPLATES
+            if name not in existing_names
+        ]
+
+        self.db.add_all(
+            Category(user_id=user_id, name=name, category_type=category_type, cost_type=cost_type)
+            for name, category_type, cost_type in missing_templates
+        )
+        if missing_templates:
+            self.db.commit()
+        return self.list_categories(user_id)
 
     def get_category(self, user_id: UUID, category_id: UUID) -> Category | None:
         statement = select(Category).where(Category.user_id == user_id, Category.id == category_id)
@@ -249,19 +302,20 @@ class FinanceRepository:
             statement = statement.where(Category.id != exclude_category_id)
         return self.db.scalar(statement) is not None
 
-    def create_category(self, user_id: UUID, name: str, kind: str) -> Category:
-        category = Category(user_id=user_id, name=name, category_type=kind)
+    def create_category(self, user_id: UUID, name: str, kind: str, cost_type: str | None = None) -> Category:
+        category = Category(user_id=user_id, name=name, category_type=kind, cost_type=self._normalize_category_cost_type(kind, cost_type))
         self.db.add(category)
         self.db.commit()
         self.db.refresh(category)
         return category
 
-    def update_category(self, user_id: UUID, category_id: UUID, name: str, kind: str) -> Category | None:
+    def update_category(self, user_id: UUID, category_id: UUID, name: str, kind: str, cost_type: str | None = None) -> Category | None:
         category = self.get_category(user_id, category_id)
         if category is None:
             return None
         category.name = name
         category.category_type = kind
+        category.cost_type = self._normalize_category_cost_type(kind, cost_type)
         self.db.commit()
         self.db.refresh(category)
         return category
@@ -416,10 +470,21 @@ class FinanceRepository:
         if category is not None:
             return category
 
-        category = Category(user_id=user_id, name=name, category_type=category_type)
+        category = Category(
+            user_id=user_id,
+            name=name,
+            category_type=category_type,
+            cost_type=self._normalize_category_cost_type(category_type, None),
+        )
         self.db.add(category)
         self.db.flush()
         return category
+
+    @staticmethod
+    def _normalize_category_cost_type(category_type: str, cost_type: str | None) -> str | None:
+        if category_type == "income":
+            return None
+        return cost_type or "variable"
 
     def _get_or_create_income_source(
         self,

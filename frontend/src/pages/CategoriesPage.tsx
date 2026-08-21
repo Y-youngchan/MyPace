@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { apiRequest } from "../api/client";
 import AppCard from "../components/common/AppCard";
 import type { CategoryEntry } from "../types/api";
@@ -8,16 +8,38 @@ type CategoryNotice = {
   text: string;
 } | null;
 
+type CategoryFilter = "all" | CategoryEntry["kind"];
+type CategoryCostType = NonNullable<CategoryEntry["cost_type"]>;
+
 function categoryKindLabel(kind: CategoryEntry["kind"]) {
   return kind === "income" ? "수입" : "지출";
 }
+
+function categoryCostTypeLabel(costType: CategoryEntry["cost_type"]) {
+  if (costType === "fixed") {
+    return "고정비";
+  }
+  if (costType === "variable") {
+    return "변동비";
+  }
+  return "";
+}
+
+const categoryFilters: Array<{ label: string; value: CategoryFilter }> = [
+  { label: "전체", value: "all" },
+  { label: "지출", value: "expense" },
+  { label: "수입", value: "income" },
+];
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<CategoryEntry[]>([]);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [kind, setKind] = useState<CategoryEntry["kind"]>("expense");
+  const [costType, setCostType] = useState<CategoryCostType>("variable");
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
   const [notice, setNotice] = useState<CategoryNotice>(null);
+  const categoryListRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     apiRequest<CategoryEntry[]>("/categories")
@@ -37,17 +59,40 @@ export default function CategoriesPage() {
     );
   }, [categories]);
 
+  const filteredCategories = useMemo(() => {
+    if (categoryFilter === "all") {
+      return categories;
+    }
+    return categories.filter((category) => category.kind === categoryFilter);
+  }, [categories, categoryFilter]);
+
   function resetForm() {
     setEditingCategoryId(null);
     setName("");
     setKind("expense");
+    setCostType("variable");
   }
 
   function handleStartEdit(category: CategoryEntry) {
     setEditingCategoryId(category.id);
     setName(category.name);
     setKind(category.kind);
+    setCostType(category.cost_type || "variable");
     setNotice(null);
+  }
+
+  function handleKindChange(nextKind: CategoryEntry["kind"]) {
+    setKind(nextKind);
+    if (nextKind === "income") {
+      setCostType("variable");
+    }
+  }
+
+  function handleChangeCategoryFilter(nextFilter: CategoryFilter) {
+    setCategoryFilter(nextFilter);
+    if (categoryListRef.current) {
+      categoryListRef.current.scrollTop = 0;
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -56,6 +101,7 @@ export default function CategoriesPage() {
     const payload = {
       name: name.trim(),
       kind,
+      cost_type: kind === "expense" ? costType : null,
     };
 
     try {
@@ -102,7 +148,7 @@ export default function CategoriesPage() {
         </AppCard>
       </section>
 
-      <section className="grid grid-cols-[minmax(320px,0.8fr)_minmax(0,1.2fr)] gap-[18px] max-[1100px]:grid-cols-1">
+      <section className="grid items-start grid-cols-[minmax(320px,0.8fr)_minmax(0,1.2fr)] gap-[18px] max-[1100px]:grid-cols-1">
         <AppCard>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="m-0 text-2xl font-extrabold tracking-[-0.04em] text-[#17253f]">
@@ -128,7 +174,7 @@ export default function CategoriesPage() {
                     className="mr-2 accent-[#173b68]"
                     checked={kind === "expense"}
                     name="kind"
-                    onChange={() => setKind("expense")}
+                    onChange={() => handleKindChange("expense")}
                     type="radio"
                     value="expense"
                   />
@@ -139,7 +185,7 @@ export default function CategoriesPage() {
                     className="mr-2 accent-[#173b68]"
                     checked={kind === "income"}
                     name="kind"
-                    onChange={() => setKind("income")}
+                    onChange={() => handleKindChange("income")}
                     type="radio"
                     value="income"
                   />
@@ -159,6 +205,39 @@ export default function CategoriesPage() {
               />
             </label>
 
+            {kind === "expense" && (
+              <fieldset className="grid gap-3 border-0 p-0">
+                <legend className="font-bold text-[#17253f]">비용 성격</legend>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="rounded-2xl border border-[#dfe5e2] bg-white px-4 py-3 font-bold text-[#17253f]">
+                    <input
+                      className="mr-2 accent-[#173b68]"
+                      checked={costType === "fixed"}
+                      name="costType"
+                      onChange={() => setCostType("fixed")}
+                      type="radio"
+                      value="fixed"
+                    />
+                    고정비
+                  </label>
+                  <label className="rounded-2xl border border-[#dfe5e2] bg-white px-4 py-3 font-bold text-[#17253f]">
+                    <input
+                      className="mr-2 accent-[#173b68]"
+                      checked={costType === "variable"}
+                      name="costType"
+                      onChange={() => setCostType("variable")}
+                      type="radio"
+                      value="variable"
+                    />
+                    변동비
+                  </label>
+                </div>
+                <p className="m-0 text-sm font-bold leading-6 text-[#66758c]">
+                  매달 거의 자동으로 빠져나가는 돈은 고정비, 그때그때 쓰는 돈은 변동비로 보면 돼요.
+                </p>
+              </fieldset>
+            )}
+
             <button className="cursor-pointer rounded-full bg-[#173b68] px-5 py-3 font-bold text-white" type="submit">
               {editingCategoryId ? "카테고리 수정 저장" : "카테고리 저장"}
             </button>
@@ -177,40 +256,80 @@ export default function CategoriesPage() {
         </AppCard>
 
         <AppCard>
-          <h2 className="m-0 text-2xl font-extrabold tracking-[-0.04em] text-[#17253f]">카테고리 목록</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="m-0 text-2xl font-extrabold tracking-[-0.04em] text-[#17253f]">카테고리 목록</h2>
+            <div className="flex rounded-[20px] bg-[#eaf1f7] p-1" aria-label="카테고리 목록 필터">
+              {categoryFilters.map((filter) => {
+                const isSelected = categoryFilter === filter.value;
+                return (
+                  <button
+                    aria-pressed={isSelected}
+                    className={`cursor-pointer rounded-2xl border-0 px-4 py-2 text-sm font-extrabold transition ${
+                      isSelected ? "bg-[#173b68] text-white shadow-[0_8px_18px_rgba(23,59,104,0.18)]" : "bg-transparent text-[#4c5f7c]"
+                    }`}
+                    key={filter.value}
+                    onClick={() => handleChangeCategoryFilter(filter.value)}
+                    type="button"
+                  >
+                    {filter.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           {categories.length === 0 ? (
             <div className="mt-5 rounded-3xl border border-dashed border-[#b9c8d8] bg-[#f7faf9] p-6">
               <strong className="block text-lg text-[#173b68]">아직 카테고리가 없어요.</strong>
               <p className="m-0 mt-2 text-[#66758c]">자주 쓰는 분류를 먼저 만들어두면 거래 입력이 쉬워져요.</p>
             </div>
+          ) : filteredCategories.length === 0 ? (
+            <div className="mt-5 rounded-3xl border border-dashed border-[#b9c8d8] bg-[#f7faf9] p-6">
+              <strong className="block text-lg text-[#173b68]">해당 구분의 카테고리가 없어요.</strong>
+              <p className="m-0 mt-2 text-[#66758c]">필요하면 왼쪽에서 새 카테고리를 추가해보세요.</p>
+            </div>
           ) : (
-            <ul className="mt-5 grid list-none gap-3 p-0">
-              {categories.map((category) => (
-                <li
-                  className="grid gap-4 rounded-3xl border border-[#dfe5e2] bg-[#fbfcfb] p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
-                  key={category.id}
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <strong className="text-lg text-[#17253f]">{category.name}</strong>
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs font-bold ${
-                        category.kind === "expense" ? "bg-[#fff1ef] text-[#9f3328]" : "bg-[#eef8f5] text-[#3b947f]"
-                      }`}
-                    >
-                      {categoryKindLabel(category.kind)}
-                    </span>
-                  </div>
-                  <button
-                    aria-label={`${category.name} 수정`}
-                    className="w-fit cursor-pointer rounded-full border-0 bg-[#eaf1f7] px-3 py-2 text-sm font-extrabold text-[#173b68] sm:justify-self-end"
-                    onClick={() => handleStartEdit(category)}
-                    type="button"
+            <div
+              aria-label="스크롤 가능한 카테고리 목록"
+              className="mt-5 max-h-[520px] overflow-y-auto pr-2 max-[1100px]:max-h-[460px]"
+              ref={categoryListRef}
+            >
+              <ul className="grid list-none gap-3 p-0">
+                {filteredCategories.map((category) => (
+                  <li
+                    className="grid gap-4 rounded-3xl border border-[#dfe5e2] bg-[#fbfcfb] p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                    key={category.id}
                   >
-                    수정
-                  </button>
-                </li>
-              ))}
-            </ul>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <strong className="text-lg text-[#17253f]">{category.name}</strong>
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-bold ${
+                          category.kind === "expense" ? "bg-[#fff1ef] text-[#9f3328]" : "bg-[#eef8f5] text-[#3b947f]"
+                        }`}
+                      >
+                        {categoryKindLabel(category.kind)}
+                      </span>
+                      {category.kind === "expense" && category.cost_type && (
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-bold ${
+                            category.cost_type === "fixed" ? "bg-[#eaf1f7] text-[#173b68]" : "bg-[#f4f0ff] text-[#5b4a9c]"
+                          }`}
+                        >
+                          {categoryCostTypeLabel(category.cost_type)}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      aria-label={`${category.name} 수정`}
+                      className="w-fit cursor-pointer rounded-full border-0 bg-[#eaf1f7] px-3 py-2 text-sm font-extrabold text-[#173b68] sm:justify-self-end"
+                      onClick={() => handleStartEdit(category)}
+                      type="button"
+                    >
+                      수정
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </AppCard>
       </section>

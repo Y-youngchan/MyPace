@@ -8,6 +8,7 @@ import FindEmailPage from "./features/auth/FindEmailPage";
 import ForgotPasswordPage from "./features/auth/ForgotPasswordPage";
 import UpdatePasswordPage from "./features/auth/UpdatePasswordPage";
 import AuthCallbackPage from "./features/auth/AuthCallbackPage";
+import ProfilePage from "./features/auth/ProfilePage";
 import ProfileSetupPage from "./features/auth/ProfileSetupPage";
 import ProfileCompletionRoute from "./features/auth/ProfileCompletionRoute";
 import DesktopLayout from "./layouts/DesktopLayout";
@@ -15,7 +16,8 @@ import BudgetsPage from "./pages/BudgetsPage";
 import CalendarPage from "./pages/CalendarPage";
 import CategoriesPage from "./pages/CategoriesPage";
 import IncomePage from "./pages/IncomePage";
-import PlaceholderPage from "./pages/PlaceholderPage";
+import AnalyticsPage from "./pages/AnalyticsPage";
+import ReportsPage from "./pages/ReportsPage";
 import TransactionsPage from "./pages/TransactionsPage";
 
 export default function App() {
@@ -32,13 +34,14 @@ export default function App() {
           <Route path="/profile-setup" element={<ProfileSetupPage />} />
           <Route element={<ProfileCompletionRoute />}>
             <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
             <Route path="/income" element={<IncomePage />} />
             <Route path="/budgets" element={<BudgetsPage />} />
             <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/transactions" element={<TransactionsPage />} />
             <Route path="/categories" element={<CategoriesPage />} />
-            <Route path="/analytics" element={<PlaceholderPage title="분석" description="소비 변화와 카테고리별 흐름을 보는 화면이에요." />} />
-            <Route path="/reports" element={<PlaceholderPage title="리포트" description="월간 소비 리포트와 PDF 다운로드를 준비하는 화면이에요." />} />
+            <Route path="/analytics" element={<AnalyticsPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
           </Route>
         </Route>

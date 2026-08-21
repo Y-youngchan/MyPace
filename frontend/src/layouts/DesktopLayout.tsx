@@ -1,4 +1,4 @@
-import { Outlet } from "react-router-dom";
+import { Link, Outlet } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import DesktopSidebar from "../components/desktop/DesktopSidebar";
 import { supabase } from "../lib/supabase";
@@ -17,7 +17,13 @@ export default function DesktopLayout() {
     <div className="grid min-h-screen grid-cols-[260px_minmax(0,1fr)] max-[1100px]:grid-cols-1">
       <DesktopSidebar />
       <main className="px-[clamp(24px,3vw,56px)] py-[clamp(28px,3vw,48px)] max-[700px]:px-5">
-        <header className="mb-6 flex justify-end">
+        <header className="mb-6 flex justify-end gap-2">
+          <Link
+            className="rounded-full border border-[#173b68]/15 bg-white/80 px-4 py-2 text-sm font-extrabold text-[#173b68] no-underline shadow-[0_12px_30px_rgba(23,37,63,0.06)]"
+            to="/profile"
+          >
+            프로필
+          </Link>
           <button
             className="cursor-pointer rounded-full border border-[#173b68]/15 bg-white/80 px-4 py-2 text-sm font-extrabold text-[#173b68] shadow-[0_12px_30px_rgba(23,37,63,0.06)]"
             type="button"
