@@ -81,6 +81,7 @@ def _to_response(transaction: Transaction) -> TransactionResponse:
         description=transaction.description,
         category_name=transaction.category.name if transaction.category else None,
         category_id=transaction.category_id,
+        category_cost_type=transaction.category.cost_type if transaction.category else None,
         account_id=transaction.account_id,
         is_synthetic=transaction.is_synthetic,
     )
@@ -100,6 +101,7 @@ def _income_to_response(entry: IncomeEntry) -> TransactionResponse:
         description=source_name,
         category_name=source_name,
         category_id=None,
+        category_cost_type=None,
         account_id=None,
         is_synthetic=True,
     )

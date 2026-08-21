@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "../api/client";
 import { getDashboardSummary } from "../api/dashboard";
 import type { DashboardBudgetProgress } from "../api/dashboard";
@@ -73,6 +73,18 @@ export default function BudgetsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [budgetNotice, setBudgetNotice] = useState<BudgetNotice | null>(null);
 
+  const loadBudgetProgress = useCallback(() => {
+    return getDashboardSummary(getCurrentBudgetPeriod())
+      .then((summary) => {
+        setCategoryBudgets(summary.budget_progress);
+        setBudgetTips(summary.weekly_actions);
+      })
+      .catch(() => {
+        setCategoryBudgets([]);
+        setBudgetTips([]);
+      });
+  }, []);
+
   useEffect(() => {
     const loadIncomeBaseline = () =>
       apiRequest<IncomeEntry[]>("/incomes")
@@ -118,16 +130,8 @@ export default function BudgetsPage() {
   }, []);
 
   useEffect(() => {
-    getDashboardSummary(getCurrentBudgetPeriod())
-      .then((summary) => {
-        setCategoryBudgets(summary.budget_progress);
-        setBudgetTips(summary.weekly_actions);
-      })
-      .catch(() => {
-        setCategoryBudgets([]);
-        setBudgetTips([]);
-      });
-  }, []);
+    void loadBudgetProgress();
+  }, [loadBudgetProgress]);
 
   const baseAllocationCards = useMemo(
     () => savedAllocationCards ?? (incomeBaseline === null ? [] : calculateBudgetAllocation(incomeBaseline, allocationRules)),
@@ -209,6 +213,7 @@ export default function BudgetsPage() {
       });
       setSavedAllocationCards(allocationCards);
       setBaselineLabel("저장된 예산 기준");
+      await loadBudgetProgress();
       setBudgetNotice({ tone: "success", message: "예산이 저장됐어요." });
     } catch {
       setBudgetNotice({
@@ -244,14 +249,16 @@ export default function BudgetsPage() {
           </p>
         </AppCard>
 
-        <AppCard className="bg-[#173b68] text-white">
-          <p className="m-0 text-[0.82rem] font-extrabold tracking-[0.08em] text-white/70 uppercase">Recommended Pace</p>
-          <h2 className="my-2.5 text-2xl font-extrabold tracking-[-0.04em]">예산 배분 조정</h2>
-          <p className="m-0 text-white/80">
-            처음에는 추천 비율로 시작하고, 내 생활 패턴에 맞게 각 항목 비율을 직접 바꿀 수 있어요. 저장하면
-            조정한 금액이 이번 달 예산으로 반영돼요.
-          </p>
-          <div className="mt-6 flex flex-wrap items-center gap-3">
+        <AppCard className="grid content-start gap-5 bg-[#173b68] text-white">
+          <div>
+            <p className="m-0 text-[0.82rem] font-extrabold tracking-[0.08em] text-white/70 uppercase">Recommended Pace</p>
+            <h2 className="my-2.5 text-2xl font-extrabold tracking-[-0.04em]">예산 배분 조정</h2>
+            <p className="m-0 text-white/80">
+              처음에는 추천 비율로 시작하고, 내 생활 패턴에 맞게 각 항목 비율을 직접 바꿀 수 있어요. 저장하면
+              조정한 금액이 이번 달 예산으로 반영돼요.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 rounded-[24px] bg-white/10 p-4">
             <button
               className="rounded-full bg-white px-5 py-3 text-sm font-extrabold text-[#173b68] shadow-[0_14px_30px_rgba(0,0,0,0.14)] transition hover:-translate-y-0.5 hover:bg-[#f6f9fc] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
               disabled={isSaving || incomeBaseline === null || allocationCards.length === 0 || isRatioOverLimit}
@@ -272,7 +279,7 @@ export default function BudgetsPage() {
             ) : null}
           </div>
           {allocationCards.length > 0 ? (
-            <div className="mt-4 grid gap-2">
+            <div className="grid gap-2">
               <p className="m-0 text-sm font-bold text-white/75">현재 비율 합계 {totalRatio}%</p>
               {isRatioOverLimit ? (
                 <p className="m-0 text-sm font-extrabold text-[#ffd0d0]">비율 합계가 100%를 넘었어요. 다른 항목을 줄여주세요.</p>

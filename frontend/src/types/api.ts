@@ -26,6 +26,7 @@ export type TransactionEntry = {
   description: string;
   category_name?: string | null;
   category_id: string | null;
+  category_cost_type: "fixed" | "variable" | null;
   account_id: string | null;
   is_synthetic: boolean;
 };

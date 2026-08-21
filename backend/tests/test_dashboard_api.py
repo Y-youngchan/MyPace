@@ -137,3 +137,88 @@ def test_dashboard_summary_combines_monthly_income_expenses_budget_and_recent_tr
         "status": "여유",
     }
     assert body["weekly_actions"]
+
+
+def test_dashboard_budget_progress_groups_expense_transactions_by_budget_bucket(
+    client: TestClient,
+    db_session: Session,
+    user_id,
+) -> None:
+    account = FinancialAccount(user_id=user_id, name="현금", account_type="cash")
+    rent = Category(user_id=user_id, name="월세/관리비", category_type="expense", cost_type="fixed")
+    food = Category(user_id=user_id, name="식비", category_type="expense", cost_type="variable")
+    savings = Category(user_id=user_id, name="저축/적금", category_type="expense", cost_type="fixed")
+    db_session.add_all([account, rent, food, savings])
+    db_session.flush()
+
+    budget = Budget(user_id=user_id, period=date(2026, 8, 1), basis_income_amount=Decimal("3000000"))
+    db_session.add(budget)
+    db_session.flush()
+
+    fixed_budget = Category(user_id=user_id, name="고정비", category_type="budget")
+    living_budget = Category(user_id=user_id, name="생활비", category_type="budget")
+    savings_budget = Category(user_id=user_id, name="저축", category_type="budget")
+    db_session.add_all([fixed_budget, living_budget, savings_budget])
+    db_session.flush()
+
+    db_session.add_all(
+        [
+            BudgetItem(
+                budget_id=budget.id,
+                category_id=fixed_budget.id,
+                recommended_amount=Decimal("1000000"),
+                adjusted_amount=Decimal("1000000"),
+            ),
+            BudgetItem(
+                budget_id=budget.id,
+                category_id=living_budget.id,
+                recommended_amount=Decimal("800000"),
+                adjusted_amount=Decimal("800000"),
+            ),
+            BudgetItem(
+                budget_id=budget.id,
+                category_id=savings_budget.id,
+                recommended_amount=Decimal("600000"),
+                adjusted_amount=Decimal("600000"),
+            ),
+            Transaction(
+                user_id=user_id,
+                account_id=account.id,
+                category_id=rent.id,
+                amount=Decimal("500000"),
+                description="월세",
+                occurred_at=datetime(2026, 8, 5, 9, 0, tzinfo=UTC),
+                transaction_type="expense",
+            ),
+            Transaction(
+                user_id=user_id,
+                account_id=account.id,
+                category_id=food.id,
+                amount=Decimal("120000"),
+                description="식비",
+                occurred_at=datetime(2026, 8, 10, 9, 0, tzinfo=UTC),
+                transaction_type="expense",
+            ),
+            Transaction(
+                user_id=user_id,
+                account_id=account.id,
+                category_id=savings.id,
+                amount=Decimal("300000"),
+                description="적금",
+                occurred_at=datetime(2026, 8, 15, 9, 0, tzinfo=UTC),
+                transaction_type="expense",
+            ),
+        ]
+    )
+    db_session.commit()
+
+    response = client.get("/api/v1/dashboard/summary?period=2026-08-01")
+
+    assert response.status_code == 200
+    progress = {item["category"]: item for item in response.json()["budget_progress"]}
+    assert progress["고정비"]["used_amount"] == "500000.00"
+    assert progress["고정비"]["used_percent"] == 50
+    assert progress["생활비"]["used_amount"] == "120000.00"
+    assert progress["생활비"]["used_percent"] == 15
+    assert progress["저축"]["used_amount"] == "300000.00"
+    assert progress["저축"]["used_percent"] == 50

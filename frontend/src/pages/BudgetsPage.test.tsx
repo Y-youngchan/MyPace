@@ -196,6 +196,60 @@ describe("BudgetsPage", () => {
     expect(await screen.findByRole("status")).toHaveTextContent("예산이 저장됐어요.");
   });
 
+  it("refreshes category budget progress after saving the budget", async () => {
+    const currentPeriod = `${new Date().toISOString().slice(0, 7)}-01`;
+    loadDashboard.mockReset();
+    loadDashboard
+      .mockResolvedValueOnce({
+        period: currentPeriod,
+        expected_income: "2900000.00",
+        monthly_spent: "67000.00",
+        remaining_living_money: "2833000.00",
+        daily_available: "94433.00",
+        budget_usage_percent: 4,
+        recent_transactions: [],
+        budget_progress: [
+          { category: "고정비", used_amount: "0.00", budget_amount: "1102000.00", used_percent: 0, status: "여유" },
+        ],
+        weekly_actions: [],
+      })
+      .mockResolvedValueOnce({
+        period: currentPeriod,
+        expected_income: "2900000.00",
+        monthly_spent: "520000.00",
+        remaining_living_money: "2380000.00",
+        daily_available: "79333.00",
+        budget_usage_percent: 18,
+        recent_transactions: [],
+        budget_progress: [
+          { category: "고정비", used_amount: "520000.00", budget_amount: "1102000.00", used_percent: 47, status: "여유" },
+        ],
+        weekly_actions: ["저장된 예산 기준으로 사용률을 다시 계산했어요."],
+      });
+    request.mockResolvedValueOnce({
+      id: "budget-1",
+      user_id: "user-1",
+      period: currentPeriod,
+      basis_income_amount: "2900000",
+      status: "accepted",
+      items: {
+        고정비: "1102000",
+        생활비: "1015000",
+        저축: "580000",
+        여유금: "203000",
+      },
+    });
+
+    render(<BudgetsPage />);
+
+    expect(await screen.findByText("0% · 여유")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "예산 확정 저장" }));
+
+    expect(await screen.findByText("47% · 여유")).toBeInTheDocument();
+    expect(screen.getByText((_, node) => node?.textContent === "520,000원 사용 / 1,102,000원 예산")).toBeInTheDocument();
+    expect(loadDashboard).toHaveBeenCalledTimes(2);
+  });
+
   it("lets users change allocation ratios before saving the budget", async () => {
     const currentPeriod = `${new Date().toISOString().slice(0, 7)}-01`;
     request.mockResolvedValueOnce({

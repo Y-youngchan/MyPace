@@ -2,16 +2,66 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ReportsPage from "./ReportsPage";
 import { getDashboardSummary } from "../api/dashboard";
+import { apiRequest } from "../api/client";
 
 vi.mock("../api/dashboard", () => ({
   getDashboardSummary: vi.fn(),
 }));
 
+vi.mock("../api/client", () => ({
+  apiRequest: vi.fn(),
+}));
+
 const loadSummary = vi.mocked(getDashboardSummary);
+const request = vi.mocked(apiRequest);
 
 describe("ReportsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    request.mockResolvedValue({
+      items: [
+        {
+          id: "transaction-1",
+          user_id: "user-1",
+          amount: "520000.00",
+          kind: "expense",
+          occurred_at: "2026-08-05",
+          description: "월세",
+          category_name: "월세/관리비",
+          category_id: "category-1",
+          category_cost_type: "fixed",
+          account_id: "account-1",
+          is_synthetic: false,
+        },
+        {
+          id: "transaction-2",
+          user_id: "user-1",
+          amount: "150000.00",
+          kind: "expense",
+          occurred_at: "2026-08-12",
+          description: "점심",
+          category_name: "식비",
+          category_id: "category-2",
+          category_cost_type: "variable",
+          account_id: "account-1",
+          is_synthetic: false,
+        },
+        {
+          id: "income-1",
+          user_id: "user-1",
+          amount: "2800000.00",
+          kind: "income",
+          occurred_at: "2026-08-01",
+          description: "월급",
+          category_name: "기본 수입",
+          category_id: null,
+          category_cost_type: null,
+          account_id: null,
+          is_synthetic: true,
+        },
+      ],
+      total: 3,
+    });
   });
 
   it("shows a readable monthly report from dashboard summary data", async () => {
@@ -41,6 +91,10 @@ describe("ReportsPage", () => {
     expect(screen.getByText("예산 사용률 24%")).toBeInTheDocument();
     expect(screen.getAllByText("교통").length).toBeGreaterThan(0);
     expect(screen.getByText("교통비가 빨라지고 있어요.")).toBeInTheDocument();
+    expect(screen.getByText("고정비 리포트")).toBeInTheDocument();
+    expect(screen.getByText("520,000원")).toBeInTheDocument();
+    expect(screen.getByText("변동비 리포트")).toBeInTheDocument();
+    expect(screen.getByText("150,000원")).toBeInTheDocument();
   });
 
   it("shows an empty report guide when there is no finance data", async () => {

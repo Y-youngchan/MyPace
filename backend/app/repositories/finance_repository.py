@@ -48,6 +48,8 @@ DEFAULT_CATEGORY_TEMPLATES = (
     ("기타 수입", "income", None),
 )
 
+SAVINGS_CATEGORY_NAMES = {"저축/적금"}
+
 
 class FinanceRepository:
     def __init__(self, db: Session) -> None:
@@ -421,19 +423,28 @@ class FinanceRepository:
         if budget is None:
             return []
 
+        transaction_categories = self._categories_for_transactions(transactions)
         spent_by_category: dict[UUID, Decimal] = {}
+        spent_by_budget_bucket: dict[str, Decimal] = {}
         for transaction in transactions:
             if transaction.category_id is None:
                 continue
             spent_by_category[transaction.category_id] = spent_by_category.get(transaction.category_id, Decimal("0")) + transaction.amount
+            bucket = self._budget_bucket_for_transaction_category(transaction_categories.get(transaction.category_id))
+            if bucket:
+                spent_by_budget_bucket[bucket] = spent_by_budget_bucket.get(bucket, Decimal("0")) + transaction.amount
 
         progress = []
         for item in budget.items:
-            used_amount = spent_by_category.get(item.category_id, Decimal("0"))
+            budget_category_name = item.category.name if item.category else ""
+            used_amount = spent_by_budget_bucket.get(
+                budget_category_name,
+                spent_by_category.get(item.category_id, Decimal("0")),
+            )
             used_percent = self._percent(used_amount, item.adjusted_amount)
             progress.append(
                 {
-                    "category": category_names.get(item.category_id, item.category.name if item.category else "미분류"),
+                    "category": category_names.get(item.category_id, budget_category_name or "미분류"),
                     "used_amount": used_amount,
                     "budget_amount": item.adjusted_amount,
                     "used_percent": used_percent,
@@ -448,6 +459,25 @@ class FinanceRepository:
             return {}
         categories = self.db.scalars(select(Category).where(Category.id.in_(category_ids)))
         return {category.id: category.name for category in categories}
+
+    def _categories_for_transactions(self, transactions: list[Transaction]) -> dict[UUID, Category]:
+        category_ids = {transaction.category_id for transaction in transactions if transaction.category_id is not None}
+        if not category_ids:
+            return {}
+        categories = self.db.scalars(select(Category).where(Category.id.in_(category_ids)))
+        return {category.id: category for category in categories}
+
+    @staticmethod
+    def _budget_bucket_for_transaction_category(category: Category | None) -> str | None:
+        if category is None or category.category_type != "expense":
+            return None
+        if category.name in SAVINGS_CATEGORY_NAMES:
+            return "저축"
+        if category.cost_type == "fixed":
+            return "고정비"
+        if category.cost_type == "variable":
+            return "생활비"
+        return None
 
     def _get_or_create_account(self, user_id: UUID) -> FinancialAccount:
         statement = select(FinancialAccount).where(

@@ -61,17 +61,40 @@ describe("App", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     auth.exchangeCodeForSession.mockResolvedValue({ data: {}, error: null } as never);
-    request.mockResolvedValue([
-      {
-        id: "income-1",
-        user_id: "user-1",
-        source_id: "source-1",
-        period: "2026-08-01",
-        expected_amount: "3000000",
-        actual_amount: "2900000",
-        received_at: "2026-08-25",
-      },
-    ]);
+    request.mockImplementation((endpoint: string) => {
+      if (endpoint.startsWith("/transactions")) {
+        return Promise.resolve({
+          items: [
+            {
+              id: "transaction-1",
+              user_id: "user-1",
+              amount: "12000.00",
+              kind: "expense",
+              occurred_at: "2026-08-12",
+              description: "점심 식사",
+              category_name: "식비",
+              category_id: "category-1",
+              category_cost_type: "variable",
+              account_id: "account-1",
+              is_synthetic: false,
+            },
+          ],
+          total: 1,
+        });
+      }
+
+      return Promise.resolve([
+        {
+          id: "income-1",
+          user_id: "user-1",
+          source_id: "source-1",
+          period: "2026-08-01",
+          expected_amount: "3000000",
+          actual_amount: "2900000",
+          received_at: "2026-08-25",
+        },
+      ]);
+    });
     loadDashboard.mockResolvedValue({
       period: "2026-08-01",
       expected_income: "2800000.00",

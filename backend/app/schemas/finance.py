@@ -92,6 +92,7 @@ class TransactionResponse(BaseModel):
     description: str
     category_name: str | None = None
     category_id: UUID | None
+    category_cost_type: Literal["fixed", "variable"] | None = None
     account_id: UUID | None
     is_synthetic: bool
 

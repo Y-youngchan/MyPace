@@ -79,8 +79,8 @@ def test_listing_transactions_returns_only_the_token_users_rows(
     other_user_id = uuid4()
     owner_account = FinancialAccount(user_id=user_id, name="현금", account_type="cash")
     other_account = FinancialAccount(user_id=other_user_id, name="현금", account_type="cash")
-    owner_category = Category(user_id=user_id, name="식비", category_type="expense")
-    other_category = Category(user_id=other_user_id, name="식비", category_type="expense")
+    owner_category = Category(user_id=user_id, name="식비", category_type="expense", cost_type="variable")
+    other_category = Category(user_id=other_user_id, name="식비", category_type="expense", cost_type="variable")
     db_session.add_all([owner_account, other_account, owner_category, other_category])
     db_session.flush()
     db_session.add_all(
@@ -111,6 +111,7 @@ def test_listing_transactions_returns_only_the_token_users_rows(
 
     assert response.status_code == 200
     assert [item["description"] for item in response.json()["items"]] == ["내 거래"]
+    assert response.json()["items"][0]["category_cost_type"] == "variable"
 
 
 def test_listing_transactions_includes_income_entries_as_synthetic_income_rows(
@@ -166,6 +167,7 @@ def test_listing_transactions_includes_income_entries_as_synthetic_income_rows(
     assert items[0]["occurred_at"].startswith("2026-08-25")
     assert items[0]["is_synthetic"] is True
     assert items[0]["account_id"] is None
+    assert items[0]["category_cost_type"] is None
 
 
 def test_transaction_amount_must_be_positive(client: TestClient) -> None:

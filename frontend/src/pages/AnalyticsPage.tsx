@@ -1,16 +1,30 @@
 import { useEffect, useMemo, useState } from "react";
+import { apiRequest } from "../api/client";
 import { getDashboardSummary } from "../api/dashboard";
 import type { DashboardBudgetProgress, DashboardSummary } from "../api/dashboard";
 import AppCard from "../components/common/AppCard";
 import MoneyText from "../components/common/MoneyText";
+import type { TransactionEntry, TransactionListResponse } from "../types/api";
 
 type AnalyticsState = {
   summary: DashboardSummary | null;
+  transactions: TransactionEntry[];
   error: string | null;
 };
 
 function currentMonthPeriod() {
   return `${new Date().toISOString().slice(0, 7)}-01`;
+}
+
+function currentMonthRange() {
+  const month = new Date().toISOString().slice(0, 7);
+  const [year, monthNumber] = month.split("-").map(Number);
+  const lastDay = new Date(year, monthNumber, 0).getDate();
+
+  return {
+    start: `${month}-01`,
+    end: `${month}-${String(lastDay).padStart(2, "0")}`,
+  };
 }
 
 function toNumber(value: string) {
@@ -45,14 +59,26 @@ function getTopBudgetCategory(items: DashboardBudgetProgress[]) {
 }
 
 export default function AnalyticsPage() {
-  const [{ summary, error }, setAnalyticsState] = useState<AnalyticsState>({ summary: null, error: null });
+  const [{ summary, transactions, error }, setAnalyticsState] = useState<AnalyticsState>({ summary: null, transactions: [], error: null });
 
   useEffect(() => {
-    getDashboardSummary(currentMonthPeriod())
-      .then((response) => setAnalyticsState({ summary: response, error: null }))
+    const monthRange = currentMonthRange();
+
+    Promise.all([
+      getDashboardSummary(currentMonthPeriod()),
+      apiRequest<TransactionListResponse>(`/transactions?start=${monthRange.start}&end=${monthRange.end}`),
+    ])
+      .then(([response, transactionResponse]) =>
+        setAnalyticsState({
+          summary: response,
+          transactions: transactionResponse.items,
+          error: null,
+        }),
+      )
       .catch(() =>
         setAnalyticsState({
           summary: null,
+          transactions: [],
           error: "분석 데이터를 불러오지 못했어요. 로그인 상태와 백엔드 서버를 확인해주세요.",
         }),
       );
@@ -63,6 +89,25 @@ export default function AnalyticsPage() {
     : false;
 
   const topBudgetCategory = useMemo(() => getTopBudgetCategory(summary?.budget_progress ?? []), [summary]);
+  const costTypeTotals = useMemo(
+    () =>
+      transactions.reduce(
+        (totals, transaction) => {
+          if (transaction.kind !== "expense") {
+            return totals;
+          }
+          if (transaction.category_cost_type === "fixed") {
+            return { ...totals, fixed: totals.fixed + toNumber(transaction.amount) };
+          }
+          if (transaction.category_cost_type === "variable") {
+            return { ...totals, variable: totals.variable + toNumber(transaction.amount) };
+          }
+          return totals;
+        },
+        { fixed: 0, variable: 0 },
+      ),
+    [transactions],
+  );
 
   return (
     <div className="grid w-full max-w-[1680px] gap-7">
@@ -116,6 +161,23 @@ export default function AnalyticsPage() {
               <strong className="mt-3 block text-[clamp(1.5rem,2vw,2rem)] tracking-[-0.04em] text-[#173b68]">
                 {summary.budget_usage_percent}%
               </strong>
+            </AppCard>
+          </section>
+
+          <section className="grid grid-cols-2 gap-4 max-[700px]:grid-cols-1" aria-label="고정비 변동비 분석">
+            <AppCard>
+              <p className="m-0 font-bold text-[#66758c]">고정비 지출</p>
+              <strong className="mt-3 block text-[clamp(1.5rem,2vw,2rem)] tracking-[-0.04em] text-[#173b68]">
+                <MoneyText amount={costTypeTotals.fixed} />
+              </strong>
+              <p className="m-0 mt-3 text-sm font-bold text-[#66758c]">월세, 통신비, 구독료처럼 반복되는 지출이에요.</p>
+            </AppCard>
+            <AppCard>
+              <p className="m-0 font-bold text-[#66758c]">변동비 지출</p>
+              <strong className="mt-3 block text-[clamp(1.5rem,2vw,2rem)] tracking-[-0.04em] text-[#9f3328]">
+                <MoneyText amount={costTypeTotals.variable} />
+              </strong>
+              <p className="m-0 mt-3 text-sm font-bold text-[#66758c]">식비, 카페, 쇼핑처럼 조절 가능한 지출이에요.</p>
             </AppCard>
           </section>
 
