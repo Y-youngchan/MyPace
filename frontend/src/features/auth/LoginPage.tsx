@@ -2,7 +2,7 @@ import { FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 import { formatAuthError } from "./authMessages";
-import { enableDevDashboardAccess } from "./devAccess";
+import { canUseDevDashboardAccess, enableDevDashboardAccess } from "./devAccess";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -126,7 +126,7 @@ export default function LoginPage() {
         </button>
       </section>
 
-      {import.meta.env.DEV && (
+      {canUseDevDashboardAccess() && (
         <section className="grid gap-2 rounded-[24px] border border-dashed border-[#173b68]/20 bg-white/55 p-4">
           <p className="m-0 text-sm font-bold text-[#66758c]">회원가입 메일 제한에 걸렸을 때 화면 확인용이에요.</p>
           <button

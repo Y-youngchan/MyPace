@@ -123,7 +123,10 @@ SUPABASE_PUBLISHABLE_KEY=
 VITE_API_URL=http://localhost:8000/api/v1
 VITE_SUPABASE_URL=https://프로젝트_REF.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=
+VITE_ENABLE_DEV_DASHBOARD=false
 ```
+
+`VITE_ENABLE_DEV_DASHBOARD`는 이메일 인증 제한 등으로 화면 확인이 막힐 때만 로컬에서 `true`로 바꿔 사용하는 개발용 옵션입니다. 배포 환경에서는 반드시 `false`로 둡니다.
 
 ## 테스트
 
@@ -154,6 +157,7 @@ PATH="/Users/yycmac/.cache/codex-runtimes/codex-primary-runtime/dependencies/nod
 배포 직전에 아래 순서로 정리합니다.
 
 - 사용하지 않는 더미 데이터/개발자용 우회 흐름 확인
+- `VITE_ENABLE_DEV_DASHBOARD=false` 확인
 - 로컬 확인용 문구와 포트폴리오 공개용 문구 분리
 - 화면별 빈 상태/에러 상태 문구 확인
 - 큰 페이지 파일 분리

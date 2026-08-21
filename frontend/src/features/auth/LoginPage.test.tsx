@@ -27,11 +27,18 @@ function renderLoginPage() {
 describe("LoginPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.unstubAllEnvs();
     window.localStorage.clear();
     window.history.pushState({}, "", "/login");
     auth.signInWithPassword.mockResolvedValue({ data: {}, error: null } as never);
     auth.signUp.mockResolvedValue({ data: {}, error: null } as never);
     auth.signInWithOAuth.mockResolvedValue({ data: {}, error: null } as never);
+  });
+
+  it("hides the local development dashboard shortcut by default", () => {
+    renderLoginPage();
+
+    expect(screen.queryByRole("button", { name: "개발용 대시보드 보기" })).not.toBeInTheDocument();
   });
 
   it("signs in with email and password", async () => {
@@ -71,6 +78,8 @@ describe("LoginPage", () => {
   });
 
   it("opens the dashboard in local development mode", () => {
+    vi.stubEnv("VITE_ENABLE_DEV_DASHBOARD", "true");
+
     renderLoginPage();
 
     fireEvent.click(screen.getByRole("button", { name: "개발용 대시보드 보기" }));
