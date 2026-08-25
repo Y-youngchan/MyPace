@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, status
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -26,3 +28,15 @@ def create_income_entry(
 ) -> IncomeEntryResponse:
     entry = FinanceRepository(db).create_income_entry(current_user.user_id, entry_data)
     return IncomeEntryResponse.model_validate(entry)
+
+
+@router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_income_entry(
+    entry_id: UUID,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    deleted = FinanceRepository(db).delete_income_entry(current_user.user_id, entry_id)
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="수입을 찾을 수 없습니다.")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

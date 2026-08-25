@@ -180,6 +180,18 @@ class FinanceRepository:
         self.db.refresh(entry)
         return entry
 
+    def get_income_entry(self, user_id: UUID, entry_id: UUID) -> IncomeEntry | None:
+        statement = select(IncomeEntry).where(IncomeEntry.user_id == user_id, IncomeEntry.id == entry_id)
+        return self.db.scalar(statement)
+
+    def delete_income_entry(self, user_id: UUID, entry_id: UUID) -> bool:
+        entry = self.get_income_entry(user_id, entry_id)
+        if entry is None:
+            return False
+        self.db.delete(entry)
+        self.db.commit()
+        return True
+
     def list_transactions(
         self,
         user_id: UUID,
@@ -321,6 +333,14 @@ class FinanceRepository:
         self.db.commit()
         self.db.refresh(category)
         return category
+
+    def delete_category(self, user_id: UUID, category_id: UUID) -> bool:
+        category = self.get_category(user_id, category_id)
+        if category is None:
+            return False
+        self.db.delete(category)
+        self.db.commit()
+        return True
 
     def upsert_budget(self, user_id: UUID, period: date, budget_data: BudgetUpsert) -> Budget:
         existing = self.get_budget(user_id, period)

@@ -164,6 +164,24 @@ def test_updating_category_changes_name_and_kind(client: TestClient) -> None:
     assert response.json()["cost_type"] is None
 
 
+def test_deleting_category_removes_only_the_token_users_row(
+    client: TestClient,
+    db_session: Session,
+    user_id,
+) -> None:
+    other_user_id = uuid4()
+    owner_category = Category(user_id=user_id, name="식비", category_type="expense", cost_type="variable")
+    other_category = Category(user_id=other_user_id, name="식비", category_type="expense", cost_type="variable")
+    db_session.add_all([owner_category, other_category])
+    db_session.commit()
+
+    response = client.delete(f"/api/v1/categories/{owner_category.id}")
+
+    assert response.status_code == 204
+    assert db_session.get(Category, owner_category.id) is None
+    assert db_session.get(Category, other_category.id) is not None
+
+
 def test_creating_duplicate_category_returns_409(client: TestClient) -> None:
     client.post("/api/v1/categories", json={"name": "식비", "kind": "expense"})
 

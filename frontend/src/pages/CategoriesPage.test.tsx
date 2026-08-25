@@ -115,6 +115,27 @@ describe("CategoriesPage", () => {
     expect(screen.queryByText("식비")).not.toBeInTheDocument();
   });
 
+  it("deletes a category after confirmation", async () => {
+    request.mockResolvedValueOnce(undefined);
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(<CategoriesPage />);
+
+    expect(await screen.findByText("식비")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "식비 삭제" }));
+
+    await waitFor(() => {
+      expect(request).toHaveBeenCalledWith("/categories/category-1", {
+        method: "DELETE",
+      });
+    });
+    expect(await screen.findByRole("status")).toHaveTextContent("카테고리가 삭제됐어요.");
+    expect(screen.queryByText("식비")).not.toBeInTheDocument();
+    expect(screen.getByText("월급")).toBeInTheDocument();
+
+    confirm.mockRestore();
+  });
+
   it("hides cost type selection for income categories and sends null cost type", async () => {
     request.mockResolvedValueOnce({ id: "category-4", user_id: "user-1", name: "이자", kind: "income", cost_type: null });
 

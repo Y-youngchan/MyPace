@@ -121,4 +121,37 @@ describe("IncomePage", () => {
       });
     });
   });
+
+  it("deletes an income entry after confirmation and reloads the list", async () => {
+    request.mockReset();
+    request
+      .mockResolvedValueOnce([
+        {
+          id: "income-1",
+          user_id: "user-1",
+          source_id: "source-1",
+          period: "2026-07-01",
+          expected_amount: "2800000",
+          actual_amount: "2750000",
+          received_at: "2026-07-25",
+        },
+      ])
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce([]);
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(<IncomePage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "2026-07 수입 삭제" }));
+
+    await waitFor(() => {
+      expect(request).toHaveBeenCalledWith("/incomes/income-1", {
+        method: "DELETE",
+      });
+    });
+    expect(await screen.findByText("아직 등록된 수입이 없어요.")).toBeInTheDocument();
+    expect(await screen.findByRole("status")).toHaveTextContent("수입이 삭제됐어요.");
+
+    confirm.mockRestore();
+  });
 });

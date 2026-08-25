@@ -455,9 +455,12 @@ export default function TransactionsPage() {
                         <MoneyText amount={getSignedAmount(transaction)} />
                       </strong>
                       {transaction.is_synthetic ? (
-                        <span className="rounded-full bg-[#eef8f5] px-3 py-2 text-sm font-extrabold text-[#3b947f]">
+                        <a
+                          className="rounded-full bg-[#eef8f5] px-3 py-2 text-sm font-extrabold text-[#3b947f] no-underline transition hover:bg-[#dff2ed]"
+                          href="/income"
+                        >
                           수입 메뉴에서 관리
-                        </span>
+                        </a>
                       ) : (
                         <div className="flex gap-2">
                           <button

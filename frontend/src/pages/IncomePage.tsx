@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "../api/client";
 import AppCard from "../components/common/AppCard";
 import MoneyText from "../components/common/MoneyText";
@@ -28,11 +28,15 @@ export default function IncomePage() {
   const [receivedAt, setReceivedAt] = useState("");
   const [notice, setNotice] = useState<IncomeNotice>(null);
 
-  useEffect(() => {
+  const loadIncomeEntries = useCallback(() => {
     apiRequest<IncomeEntry[]>("/incomes")
       .then(setEntries)
       .catch(() => setNotice({ tone: "error", text: "수입 목록을 불러오지 못했어요." }));
   }, []);
+
+  useEffect(() => {
+    loadIncomeEntries();
+  }, [loadIncomeEntries]);
 
   const latestEntry = entries[0];
   const latestExpected = Number(latestEntry?.expected_amount ?? 0);
@@ -79,6 +83,22 @@ export default function IncomePage() {
       setNotice({ tone: "success", text: "수입이 저장됐어요." });
     } catch {
       setNotice({ tone: "error", text: "수입을 저장하지 못했어요." });
+    }
+  }
+
+  async function handleDelete(entry: IncomeEntry) {
+    if (!window.confirm(`${entry.period.slice(0, 7)} 수입을 삭제할까요?`)) {
+      return;
+    }
+
+    try {
+      await apiRequest(`/incomes/${entry.id}`, {
+        method: "DELETE",
+      });
+      loadIncomeEntries();
+      setNotice({ tone: "success", text: "수입이 삭제됐어요." });
+    } catch {
+      setNotice({ tone: "error", text: "수입을 삭제하지 못했어요." });
     }
   }
 
@@ -223,9 +243,19 @@ export default function IncomePage() {
                       </span>
                     </div>
                   </div>
-                  <strong className="text-xl tracking-[-0.04em] text-[#173b68]">
-                    <MoneyText amount={Number(entry.actual_amount ?? entry.expected_amount)} />
-                  </strong>
+                  <div className="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
+                    <strong className="text-xl tracking-[-0.04em] text-[#173b68]">
+                      <MoneyText amount={Number(entry.actual_amount ?? entry.expected_amount)} />
+                    </strong>
+                    <button
+                      aria-label={`${entry.period.slice(0, 7)} 수입 삭제`}
+                      className="cursor-pointer rounded-full bg-[#fff1ef] px-4 py-2 text-sm font-extrabold text-[#9f3328] transition hover:bg-[#ffe1dc]"
+                      onClick={() => handleDelete(entry)}
+                      type="button"
+                    >
+                      삭제
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>

@@ -116,6 +116,40 @@ def test_listing_income_entries_returns_only_the_token_users_rows(
     assert response.json()[0]["expected_amount"] == "2800000.00"
 
 
+def test_deleting_income_entry_removes_only_the_token_users_row(
+    client: TestClient,
+    db_session: Session,
+    user_id,
+) -> None:
+    other_user_id = uuid4()
+    owner_source = IncomeSource(user_id=user_id, name="내 월급", source_type="salary")
+    other_source = IncomeSource(user_id=other_user_id, name="남의 월급", source_type="salary")
+    db_session.add_all([owner_source, other_source])
+    db_session.flush()
+    owner_entry = IncomeEntry(
+        user_id=user_id,
+        source_id=owner_source.id,
+        period=date(2026, 8, 1),
+        expected_amount=Decimal("2800000"),
+        actual_amount=Decimal("2750000"),
+    )
+    other_entry = IncomeEntry(
+        user_id=other_user_id,
+        source_id=other_source.id,
+        period=date(2026, 8, 1),
+        expected_amount=Decimal("9900000"),
+        actual_amount=Decimal("9900000"),
+    )
+    db_session.add_all([owner_entry, other_entry])
+    db_session.commit()
+
+    response = client.delete(f"/api/v1/incomes/{owner_entry.id}")
+
+    assert response.status_code == 204
+    assert db_session.get(IncomeEntry, owner_entry.id) is None
+    assert db_session.get(IncomeEntry, other_entry.id) is not None
+
+
 def test_income_expected_amount_must_be_positive(client: TestClient) -> None:
     response = client.post(
         "/api/v1/incomes",

@@ -258,7 +258,7 @@ describe("TransactionsPage", () => {
     render(<TransactionsPage />);
 
     expect((await screen.findAllByText("월급")).length).toBeGreaterThan(0);
-    expect(screen.getByText("수입 메뉴에서 관리")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "수입 메뉴에서 관리" })).toHaveAttribute("href", "/income");
     expect(screen.queryByRole("button", { name: "월급 수정" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "월급 삭제" })).not.toBeInTheDocument();
   });

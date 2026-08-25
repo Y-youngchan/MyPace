@@ -123,6 +123,25 @@ export default function CategoriesPage() {
     }
   }
 
+  async function handleDelete(category: CategoryEntry) {
+    if (!window.confirm(`${category.name} 카테고리를 삭제할까요?`)) {
+      return;
+    }
+
+    try {
+      await apiRequest(`/categories/${category.id}`, {
+        method: "DELETE",
+      });
+      setCategories((currentCategories) => currentCategories.filter((currentCategory) => currentCategory.id !== category.id));
+      if (editingCategoryId === category.id) {
+        resetForm();
+      }
+      setNotice({ tone: "success", text: "카테고리가 삭제됐어요." });
+    } catch {
+      setNotice({ tone: "error", text: "카테고리를 삭제하지 못했어요. 이미 예산에서 사용 중이면 먼저 예산을 조정해주세요." });
+    }
+  }
+
   return (
     <div className="grid w-full max-w-[1680px] gap-7">
       <header>
@@ -318,14 +337,24 @@ export default function CategoriesPage() {
                         </span>
                       )}
                     </div>
-                    <button
-                      aria-label={`${category.name} 수정`}
-                      className="w-fit cursor-pointer rounded-full border-0 bg-[#eaf1f7] px-3 py-2 text-sm font-extrabold text-[#173b68] sm:justify-self-end"
-                      onClick={() => handleStartEdit(category)}
-                      type="button"
-                    >
-                      수정
-                    </button>
+                    <div className="flex gap-2 sm:justify-self-end">
+                      <button
+                        aria-label={`${category.name} 수정`}
+                        className="w-fit cursor-pointer rounded-full border-0 bg-[#eaf1f7] px-3 py-2 text-sm font-extrabold text-[#173b68]"
+                        onClick={() => handleStartEdit(category)}
+                        type="button"
+                      >
+                        수정
+                      </button>
+                      <button
+                        aria-label={`${category.name} 삭제`}
+                        className="w-fit cursor-pointer rounded-full border-0 bg-[#fff1ef] px-3 py-2 text-sm font-extrabold text-[#9f3328]"
+                        onClick={() => handleDelete(category)}
+                        type="button"
+                      >
+                        삭제
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
